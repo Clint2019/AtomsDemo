@@ -1,0 +1,192 @@
+{
+  "modules": {
+    "identity": {
+      "protocol": "IdentityAPI",
+      "service": "IdentityService"
+    },
+    "workspaces": {
+      "protocol": "WorkspaceAPI",
+      "service": "WorkspaceService"
+    },
+    "profiles": {
+      "protocol": "ProfileAPI",
+      "service": "ProfileService"
+    },
+    "projects": {
+      "protocol": "ProjectAPI",
+      "service": "ProjectService"
+    },
+    "catalog": {
+      "protocol": "CatalogAPI",
+      "service": "CatalogService"
+    },
+    "billing": {
+      "protocol": "BillingAPI",
+      "service": "BillingService"
+    },
+    "connectors": {
+      "protocol": "ConnectorAPI",
+      "service": "ConnectorService"
+    },
+    "storage": {
+      "protocol": "StorageAPI",
+      "service": "StorageService"
+    },
+    "conversations": {
+      "protocol": "ConversationAPI",
+      "service": "ConversationService"
+    },
+    "tasks": {
+      "protocol": "TaskAPI",
+      "service": "TaskService"
+    },
+    "generation": {
+      "protocol": "GenerationAPI",
+      "service": "GenerationService"
+    },
+    "builds": {
+      "protocol": "BuildAPI",
+      "service": "BuildService"
+    },
+    "versions": {
+      "protocol": "VersionAPI",
+      "service": "VersionService"
+    },
+    "preview": {
+      "protocol": "PreviewAPI",
+      "service": "PreviewService"
+    },
+    "app_resources": {
+      "protocol": "AppResourceAPI",
+      "service": "AppResourceService"
+    },
+    "publication": {
+      "protocol": "PublicationAPI",
+      "service": "PublicationService"
+    }
+  },
+  "readme_modules": {
+    "登录与注册": [
+      "identity"
+    ],
+    "邮箱验证": [
+      "identity"
+    ],
+    "工作台与导航": [
+      "projects",
+      "workspaces",
+      "generation",
+      "storage"
+    ],
+    "我的项目": [
+      "projects"
+    ],
+    "发现与模板": [
+      "catalog"
+    ],
+    "个人主页与公开作品": [
+      "profiles",
+      "catalog",
+      "preview"
+    ],
+    "账号与偏好设置": [
+      "profiles",
+      "identity"
+    ],
+    "定价、套餐与积分": [
+      "billing"
+    ],
+    "云与 AI 钱包": [
+      "billing"
+    ],
+    "连接器": [
+      "connectors"
+    ],
+    "磁盘空间": [
+      "storage",
+      "billing"
+    ],
+    "工作区成员": [
+      "workspaces"
+    ],
+    "项目对话与 Agent": [
+      "conversations",
+      "tasks",
+      "generation"
+    ],
+    "代码、文件与预览": [
+      "versions",
+      "storage",
+      "builds",
+      "preview"
+    ],
+    "历史、恢复与分享": [
+      "versions",
+      "preview"
+    ],
+    "应用资源与管理": [
+      "app_resources",
+      "storage"
+    ],
+    "发布与域名": [
+      "publication",
+      "builds"
+    ]
+  },
+  "functional_requirements": {
+    "F01": [
+      "projects"
+    ],
+    "F02": [
+      "generation",
+      "tasks",
+      "builds"
+    ],
+    "F03": [
+      "generation",
+      "conversations",
+      "versions"
+    ],
+    "F04": [
+      "tasks"
+    ],
+    "F05": [
+      "preview",
+      "app_resources"
+    ],
+    "F06": [
+      "versions",
+      "storage"
+    ],
+    "F07": [
+      "projects",
+      "conversations",
+      "tasks",
+      "versions"
+    ],
+    "F08": [
+      "app_resources"
+    ],
+    "F09": [
+      "versions"
+    ],
+    "F10": [
+      "generation",
+      "builds",
+      "tasks"
+    ],
+    "F11": [
+      "versions"
+    ],
+    "F12": [
+      "preview"
+    ],
+    "F13": [
+      "publication",
+      "preview"
+    ]
+  },
+  "deferred_only": [
+    "atoms_demo.adapters.infrastructure"
+  ]
+}

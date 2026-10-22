@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+secret.env
+*.pem
+*.key
+*.egg-info/
+node_modules/
+dist/
+runtime-data/
+analysis/
+.pytest_cache/
+# Local planning, private acceptance records, and host-specific operations.
+task.md
+docs/*
+!docs/contracts-index.json
+scripts/
+deploy/
