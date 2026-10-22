@@ -54,6 +54,10 @@ class AppSessionRecord:
     app_user_id: EntityId
     environment: Environment
     expires_at: datetime
+    access_kind: str = "legacy"
+    share_id: EntityId | None = None
+    platform_actor_id: EntityId | None = None
+    platform_session_id: EntityId | None = None
     revision: int = 0
 
 
@@ -264,7 +268,9 @@ class AppResourceService:
         return saved
 
     async def open_app_session(self, grant: PreviewGrant,
-                               existing_app_token: str | None) -> AppSession:
+                               existing_app_token: str | None,
+                               platform_actor_id: EntityId | None = None,
+                               platform_session_id: EntityId | None = None) -> AppSession:
         if grant.expires_at <= self.dependencies.clock.now():
             raise DomainError(ErrorCode.FORBIDDEN, "Preview grant expired")
         if grant.environment == Environment.PUBLIC_PREVIEW and (
@@ -272,13 +278,33 @@ class AppResourceService:
                 await self.dependencies.source.author_for(
                     grant.project_id, grant.version_id) != grant.public_author_id):
             raise DomainError(ErrorCode.FORBIDDEN, "Public work is unavailable")
+        if platform_actor_id is not None and (
+                grant.environment != Environment.DEVELOPMENT or grant.share_id is not None or
+                grant.owner_actor_id != platform_actor_id or platform_session_id is None):
+            raise DomainError(ErrorCode.FORBIDDEN, "Account session requires owner preview")
+        if platform_actor_id is not None:
+            actor = await self.dependencies.platform_sessions.actor_for(
+                platform_session_id, self.dependencies.clock.now())
+            if actor != platform_actor_id:
+                raise DomainError(ErrorCode.UNAUTHENTICATED, "Platform session expired")
+            await self.dependencies.authorization.require(RequestContext(
+                actor_id=platform_actor_id, session_id=platform_session_id,
+                workspace_id=None, request_id="app-session"),
+                "project:history", grant.project_id)
+        access_kind = ("catalog" if grant.environment == Environment.PUBLIC_PREVIEW else
+                       "share" if grant.share_id is not None else
+                       "owner" if platform_actor_id is not None else "legacy")
         if existing_app_token:
             try:
                 existing = await self._session(existing_app_token)
             except DomainError:
                 existing = None
             if (existing and existing.target_project_id == grant.project_id and
-                    existing.environment == grant.environment):
+                    existing.environment == grant.environment and
+                    existing.access_kind == access_kind and
+                    existing.share_id == grant.share_id and
+                    existing.platform_actor_id == platform_actor_id and
+                    existing.platform_session_id == platform_session_id):
                 public_match = True
                 if grant.environment == Environment.PUBLIC_PREVIEW:
                     async with self.dependencies.uow() as uow:
@@ -289,24 +315,41 @@ class AppResourceService:
                     return AppSession(id=EntityId(existing_app_token),
                         project_id=grant.project_id, app_user_id=existing.app_user_id,
                         environment=existing.environment, expires_at=existing.expires_at)
-        # Tickets are created by the preview owner, so find its project workspace
-        # through the authorization adapter's project locator via a scoped record.
+        # Locate the project's workspace before creating scoped app identity records.
         workspace_id = await self._project_workspace(grant.project_id)
-        user_id = self.dependencies.ids.new()
+        user_id = (_hash(f"app-account:{grant.project_id}:{grant.environment.value}:"
+                         f"{platform_actor_id}") if platform_actor_id is not None
+                   else self.dependencies.ids.new())
         token = secrets.token_urlsafe(32)
         expires_at = self.dependencies.clock.now() + APP_SESSION_LIFETIME
         scope = Scope(workspace_id=workspace_id, project_id=grant.project_id)
         async with self.dependencies.uow() as uow:
-            await uow.repository(AppUserRecord).save(scope, AppUserRecord(
-                id=user_id, project_id=grant.project_id,
-                created_at=self.dependencies.clock.now(), environment=grant.environment), None)
-            await uow.repository(AppUserLocator).save(GLOBAL, AppUserLocator(
-                id=user_id, target_workspace_id=workspace_id,
-                target_project_id=grant.project_id, environment=grant.environment), None)
+            users = uow.repository(AppUserRecord)
+            locator_repo = uow.repository(AppUserLocator)
+            prior_user = await users.get(scope, user_id)
+            if prior_user is None:
+                await users.save(scope, AppUserRecord(
+                    id=user_id, project_id=grant.project_id,
+                    created_at=self.dependencies.clock.now(), environment=grant.environment), None)
+            elif (prior_user.project_id != grant.project_id or
+                  prior_user.environment != grant.environment):
+                raise DomainError(ErrorCode.CONFLICT, "Application identity scope changed")
+            prior_locator = await locator_repo.get(GLOBAL, user_id)
+            if prior_locator is None:
+                await locator_repo.save(GLOBAL, AppUserLocator(
+                    id=user_id, target_workspace_id=workspace_id,
+                    target_project_id=grant.project_id, environment=grant.environment), None)
+            elif (prior_locator.target_workspace_id != workspace_id or
+                  prior_locator.target_project_id != grant.project_id or
+                  prior_locator.environment != grant.environment):
+                raise DomainError(ErrorCode.CONFLICT, "Application identity scope changed")
             await uow.repository(AppSessionRecord).save(GLOBAL, AppSessionRecord(
                 id=_hash(token), target_workspace_id=workspace_id,
                 target_project_id=grant.project_id, app_user_id=user_id,
-                environment=grant.environment, expires_at=expires_at), None)
+                environment=grant.environment, expires_at=expires_at,
+                access_kind=access_kind, share_id=grant.share_id,
+                platform_actor_id=platform_actor_id,
+                platform_session_id=platform_session_id), None)
             if grant.environment == Environment.PUBLIC_PREVIEW:
                 await uow.repository(PublicAppSessionMarker).save(GLOBAL,
                     PublicAppSessionMarker(id=_hash(token), version_id=grant.version_id,
@@ -350,6 +393,42 @@ class AppResourceService:
                 raise DomainError(ErrorCode.UNAUTHENTICATED, "Public work is unavailable")
         return AppDataContext(project_id=record.target_project_id,
             app_user_id=record.app_user_id, environment=record.environment)
+
+    async def authenticate_ip_app(self, app_token: str,
+                                  grant: PreviewGrant) -> AppDataContext:
+        """Reject app-session replay across owner, share and catalog tickets."""
+        record = await self._session(app_token)
+        expected_kind = ("catalog" if grant.environment == Environment.PUBLIC_PREVIEW else
+                         "share" if grant.share_id is not None else "owner")
+        if (record.target_project_id != grant.project_id or
+                record.environment != grant.environment or
+                record.access_kind != expected_kind or
+                record.share_id != grant.share_id or
+                (expected_kind == "owner" and (
+                    record.platform_actor_id is None or
+                    record.platform_actor_id != grant.owner_actor_id or
+                    record.platform_session_id is None)) or
+                (expected_kind != "owner" and (
+                    record.platform_actor_id is not None or
+                    record.platform_session_id is not None))):
+            raise DomainError(ErrorCode.FORBIDDEN, "Application session scope differs")
+        if expected_kind == "owner":
+            actor = await self.dependencies.platform_sessions.actor_for(
+                record.platform_session_id, self.dependencies.clock.now())
+            if actor != record.platform_actor_id:
+                raise DomainError(ErrorCode.UNAUTHENTICATED, "Platform session expired")
+            await self.dependencies.authorization.require(RequestContext(
+                actor_id=record.platform_actor_id,
+                session_id=record.platform_session_id,
+                workspace_id=None, request_id="app-data"),
+                "project:history", grant.project_id)
+        if expected_kind == "catalog":
+            async with self.dependencies.uow() as uow:
+                marker = await uow.repository(PublicAppSessionMarker).get(GLOBAL, record.id)
+            if (marker is None or marker.version_id != grant.version_id or
+                    marker.author_id != grant.public_author_id):
+                raise DomainError(ErrorCode.FORBIDDEN, "Application session scope differs")
+        return await self.authenticate_app(app_token)
 
     async def records(self, ctx: AppDataContext, collection: str,
                       page: PageQuery) -> Page[AppRecord]:

@@ -69,6 +69,11 @@ class UserDirectory(Protocol):
     async def email_for(self, user_id: EntityId) -> str | None: ...
 
 
+class PlatformSessionLookup(Protocol):
+    """Read whether a platform login session is still active."""
+    async def actor_for(self, session_id: EntityId, now: datetime) -> EntityId | None: ...
+
+
 class ProjectWorkspaceLookup(Protocol):
     async def workspace_for(self, project_id: EntityId) -> EntityId | None: ...
 

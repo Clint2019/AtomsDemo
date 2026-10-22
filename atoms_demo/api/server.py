@@ -622,6 +622,17 @@ def handler_type(settings: Settings, application: Application | None = None) -> 
                 return 201, await application.preview.open(ctx,
                     EntityId(path.split("/")[4]),
                     EntityId(self._string(body, "version_id"))), ()
+            if operation == ("preview", "app_session"):
+                if ctx.actor_id is None:
+                    raise DomainError(ErrorCode.UNAUTHENTICATED, "Sign in required")
+                token = self._string(body, "preview_token")
+                grant = await services.preview.resolve_ticket(token)
+                if grant.environment != Environment.DEVELOPMENT or grant.share_id is not None:
+                    raise DomainError(ErrorCode.FORBIDDEN, "Owner preview required")
+                await services.preview.dependencies.authorization.require(
+                    ctx, "project:history", grant.project_id)
+                return 200, await application.preview.app_session(
+                    token, None, ctx.actor_id, ctx.session_id), ()
             if operation == ("preview", "revoke_ticket"):
                 await services.preview.revoke_ticket(ctx,
                     EntityId(path.rsplit("/", 1)[-1]), self._mutation(body))

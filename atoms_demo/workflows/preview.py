@@ -43,6 +43,9 @@ class PreviewWorkflow:
         return await self.services.preview.create_share(ctx,
             await self._grant(ctx, project_id, version_id), mutation)
 
-    async def app_session(self, preview_token: str, existing_app_token: str | None) -> AppSession:
+    async def app_session(self, preview_token: str, existing_app_token: str | None,
+                          platform_actor_id: EntityId | None = None,
+                          platform_session_id: EntityId | None = None) -> AppSession:
         grant = await self.services.preview.resolve_ticket(preview_token)
-        return await self.services.app_resources.open_app_session(grant, existing_app_token)
+        return await self.services.app_resources.open_app_session(
+            grant, existing_app_token, platform_actor_id, platform_session_id)

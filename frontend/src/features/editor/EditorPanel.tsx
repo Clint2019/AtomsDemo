@@ -15,6 +15,7 @@ import { MessageSearchPanel } from "./MessageSearchPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { supportsVisualHtml, VisualHtmlEditor } from "./VisualHtmlEditor";
 import { StaticTsxEditor } from "./StaticTsxEditor";
+import { AuthenticatedPreviewFrame } from "./AuthenticatedPreviewFrame";
 
 interface ModelOption { key: string; label: string; available: boolean }
 interface Message { id: string; role: string; content: string; attachment_ids: string[]; created_at: string; task_id: string | null }
@@ -752,8 +753,8 @@ export function EditorPanel({ projectId, actorId, workspaceId, initialPrompt, in
           <button type="button" title="刷新预览" onClick={() => void openPreview()} disabled={!displayedPreviewVersion || busy}>↻</button>
           <button type="button" title="打开完整预览" onClick={() => setTab("preview")}>↗</button></div></div>
         {previewTicket && previewTicket.version_id === displayedPreviewVersion
-          ? <iframe title="应用实时预览" src={previewTicket.url} className={`chat-preview-frame ${device}`}
-              sandbox={new URL(previewTicket.url).hostname === window.location.hostname ? "allow-scripts allow-forms" : "allow-scripts allow-forms allow-same-origin"} />
+          ? <AuthenticatedPreviewFrame key={`${actorId}:${previewTicket.url}`} ticket={previewTicket} title="应用实时预览"
+              className={`chat-preview-frame ${device}`} />
           : <div className="chat-preview-empty"><span aria-hidden="true">◌</span><p>{head.data?.version_id ? "正在准备预览…" : "生成应用后，在这里实时预览"}</p></div>}
       </div>}
     {tab === "overview" && <OverviewPanel projectId={projectId}
@@ -825,7 +826,7 @@ export function EditorPanel({ projectId, actorId, workspaceId, initialPrompt, in
       <div className="inline-form"><button className="primary" onClick={() => void openVersionPreview(head.data?.version_id)} disabled={busy || !!restoringHead || head.loading || !head.data?.version_id}>打开当前版本</button>
         <button onClick={createShare} disabled={busy || !!restoringHead || head.loading || !head.data?.version_id}>创建固定版本分享</button></div></div>
       <div className="segmented">{(["desktop", "tablet", "mobile"] as const).map((size) => <button key={size} className={device === size ? "active" : ""} onClick={() => setDevice(size)}>{size}</button>)}</div>
-      {previewTicket && previewTicket.version_id === displayedPreviewVersion ? <iframe title="应用预览" className={`preview-frame ${device}`} src={previewTicket.url} sandbox={new URL(previewTicket.url).hostname === window.location.hostname ? "allow-scripts allow-forms" : "allow-scripts allow-forms allow-same-origin"} />
+      {previewTicket && previewTicket.version_id === displayedPreviewVersion ? <AuthenticatedPreviewFrame key={`${actorId}:${previewTicket.url}`} ticket={previewTicket} title="应用预览" className={`preview-frame ${device}`} />
         : <p className="muted">打开当前成功版本后显示预览。</p>}
       {share && <div className="notice"><a href={share.url} target="_blank" rel="noreferrer">打开分享链接</a>
         <span className="muted compact-id" title={`版本 ID：${share.version_id}`}> 固定版本：{formatId(share.version_id)}</span> <button onClick={revokeShare} disabled={busy}>撤销分享</button></div>}</div>}

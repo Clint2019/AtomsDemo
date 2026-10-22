@@ -29,6 +29,7 @@ class TicketRecord:
     environment: Environment
     expires_at: datetime
     share_id: EntityId | None = None
+    owner_actor_id: EntityId | None = None
     revoked: bool = False
     revision: int = 0
 
@@ -128,14 +129,16 @@ class PreviewService:
             raise DomainError(ErrorCode.INVALID_INPUT, "Invalid preview grant")
 
     async def _issue(self, workspace_id: EntityId, grant: PreviewGrant,
-                     share_id: EntityId | None = None) -> PreviewTicket:
+                     share_id: EntityId | None = None,
+                     owner_actor_id: EntityId | None = None) -> PreviewTicket:
         self._check_grant(grant)
         await self.dependencies.blobs.read(grant.artifact)
         token = secrets.token_urlsafe(32)
         record = TicketRecord(id=_hash(token), target_workspace_id=workspace_id,
             target_project_id=grant.project_id, version_id=grant.version_id,
             artifact=grant.artifact, environment=grant.environment,
-            expires_at=grant.expires_at, share_id=share_id)
+            expires_at=grant.expires_at, share_id=share_id,
+            owner_actor_id=owner_actor_id)
         async with self.dependencies.uow() as uow:
             await uow.repository(TicketRecord).save(GLOBAL, record, None)
             if grant.public_author_id is not None:
@@ -154,7 +157,8 @@ class PreviewService:
         await self.dependencies.authorization.require(ctx, "project:history", grant.project_id)
         if ctx.workspace_id is None:
             raise DomainError(ErrorCode.FORBIDDEN, "Workspace selection required")
-        return await self._issue(ctx.workspace_id, grant)
+        return await self._issue(ctx.workspace_id, grant,
+                                 owner_actor_id=ctx.actor_id)
 
     async def issue_catalog_ticket(self, grant: PreviewGrant,
                                    author_id: EntityId) -> PreviewTicket:
@@ -202,7 +206,9 @@ class PreviewService:
         return PreviewGrant(project_id=record.target_project_id, version_id=record.version_id,
                             artifact=record.artifact, environment=record.environment,
                             expires_at=record.expires_at,
-                            public_author_id=public_marker.author_id if public_marker else None)
+                            public_author_id=public_marker.author_id if public_marker else None,
+                            share_id=record.share_id,
+                            owner_actor_id=record.owner_actor_id)
 
     async def serve_artifact(self, token: str) -> bytes:
         grant = await self.resolve_ticket(token)

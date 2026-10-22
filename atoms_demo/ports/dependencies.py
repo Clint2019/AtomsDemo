@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from atoms_demo.ports.persistence import UnitOfWorkFactory
 from atoms_demo.ports.runtime import (
-    AttachmentAccess, Authorization, BlobStore, Clock, CommitFence, EventStore, IdFactory, JobQueue, ProjectWorkspaceLookup, PublicCatalogSource, SecretStore, TaskMessageWriter, UserDirectory,
+    AttachmentAccess, Authorization, BlobStore, Clock, CommitFence, EventStore, IdFactory, JobQueue, PlatformSessionLookup, ProjectWorkspaceLookup, PublicCatalogSource, SecretStore, TaskMessageWriter, UserDirectory,
 )
 from atoms_demo.ports.providers import (
     BuildExecutor, CaptchaProvider, MailProvider, ModelProvider, OAuthProvider,
@@ -166,6 +166,7 @@ class AppResourceDependencies:
     secrets: SecretStore
     projects: ProjectWorkspaceLookup
     source: PublicCatalogSource
+    platform_sessions: PlatformSessionLookup
 
 
 @dataclass(frozen=True, kw_only=True)

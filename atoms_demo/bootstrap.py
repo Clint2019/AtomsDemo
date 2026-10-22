@@ -5,7 +5,7 @@ from atoms_demo.core.types import Environment
 from atoms_demo.api.application import Application
 from atoms_demo.adapters import (
     attachment_access, authorization, blob_store, build_executor, captcha_provider, catalog_source, commit_fence, deployment_verifier, event_store,
-    job_queue, mail_provider, model_provider, oauth_provider, payment_provider, persistence, project_workspace,
+    job_queue, mail_provider, model_provider, oauth_provider, payment_provider, persistence, platform_session_lookup, project_workspace,
     secret_store, storage_pricing, task_messages, usage_pricing, user_directory,
 )
 from atoms_demo.adapters.runtime import SystemClock, UUIDFactory
@@ -227,7 +227,8 @@ def compose_application(settings: Settings) -> Application:
             preview_origin=settings.preview_origin)),
         app_resources=AppResourceService(AppResourceDependencies(**common, blobs=blobs,
             secrets=secrets, projects=project_workspace.create_adapter(settings),
-            source=catalog_source.create_adapter(settings))),
+            source=catalog_source.create_adapter(settings),
+            platform_sessions=platform_session_lookup.create_adapter(settings))),
         publication=PublicationService(PublicationDependencies(**common, blobs=blobs,
             verifier=deployment_verifier.create_adapter(settings))),
     )

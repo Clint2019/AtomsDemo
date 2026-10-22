@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import io
 import json
 import mimetypes
@@ -77,6 +78,12 @@ def handler_type(settings: Settings, application: Application) -> type[BaseHTTPR
     def app_cookie_name(environment: Environment) -> str:
         return "app_session_public_preview" if environment == Environment.PUBLIC_PREVIEW else "app_session"
 
+    def ip_app_cookie_name(grant) -> str:
+        # One anonymous visitor identity per share (or public catalog project).
+        # Owner previews use an authenticated platform account instead.
+        key = f"{grant.project_id}:{grant.environment.value}:{grant.share_id or 'catalog'}"
+        return "ip_app_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
+
     class PreviewHandler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: object) -> None:
             # Preview and share URLs carry bearer tokens; default access logs
@@ -150,10 +157,8 @@ def handler_type(settings: Settings, application: Application) -> type[BaseHTTPR
             session_id = self.headers.get("X-Preview-Session", "")
             if not session_id:
                 raise DomainError(ErrorCode.UNAUTHENTICATED, "Preview session required")
-            context = await application.services.app_resources.authenticate_app(session_id)
-            if context.project_id != grant.project_id or context.environment != grant.environment:
-                raise DomainError(ErrorCode.FORBIDDEN, "Application session scope differs")
-            return context
+            return await application.services.app_resources.authenticate_ip_app(
+                session_id, grant)
 
         def _ip_csp(self, token: str, nonce: str | None = None) -> str:
             base = f"{settings.preview_origin}/p/{token}/"
@@ -164,18 +169,34 @@ def handler_type(settings: Settings, application: Application) -> type[BaseHTTPR
                     f"connect-src {base}; object-src 'none'; base-uri 'none'; "
                     f"frame-ancestors {settings.public_origin}")
 
-        def _ip_html(self, content: bytes, token: str, session_id: str,
+        def _ip_html(self, content: bytes, token: str, session_id: str | None,
                      nonce: str) -> bytes:
             # Generated applications use root-relative /app URLs. The bridge keeps
             # every request inside this ticket's path and sends a scoped session.
+            # An owner iframe has an opaque sandbox origin, so its parent sends an
+            # account-bound session after an origin-checked postMessage handshake.
             script = ("<script nonce=\"" + nonce + "\">" +
                 "(()=>{const prefix=" + json.dumps(f"/p/{token}") + ";" +
-                "const session=" + json.dumps(session_id) + ";" +
+                "const previewToken=" + json.dumps(token) + ";" +
+                "const parentOrigin=" + json.dumps(settings.public_origin) + ";" +
+                "let session=" + json.dumps(session_id) + ";" +
+                "let acceptSession;const sessionReady=new Promise(resolve=>acceptSession=resolve);" +
+                "if(session)acceptSession(session);" +
+                "const ready=()=>window.parent.postMessage({type:'atoms:app-session-ready',previewToken},parentOrigin);" +
+                "window.addEventListener('message',event=>{" +
+                "if(event.source!==window.parent||event.origin!==parentOrigin)return;" +
+                "const data=event.data;if(!data)return;" +
+                "if(data.type==='atoms:app-session-ping'){ready();return;}" +
+                "if(data.previewToken!==previewToken)return;" +
+                "if(data.type==='atoms:app-session'&&typeof data.token==='string'&&data.token){" +
+                "session=data.token;acceptSession(session);}});" +
+                "ready();" +
                 "const nativeFetch=window.fetch.bind(window);" +
-                "window.fetch=(input,init={})=>{const raw=typeof input==='string'?input:input.url;" +
+                "window.fetch=async(input,init={})=>{const raw=typeof input==='string'?input:input.url;" +
                 "if(!raw.startsWith('/app/'))return nativeFetch(input,init);" +
+                "const activeSession=await sessionReady;" +
                 "const headers=new Headers(init.headers || (input instanceof Request?input.headers:undefined));" +
-                "headers.set('X-Preview-Session',session);" +
+                "headers.set('X-Preview-Session',activeSession);" +
                 "return nativeFetch(prefix+raw,{...init,headers,credentials:'omit'});};" +
                 "})();</script>")
             # Older Vite artifacts may contain root-relative /assets URLs even
@@ -222,10 +243,35 @@ def handler_type(settings: Settings, application: Application) -> type[BaseHTTPR
             artifact = await application.services.preview.serve_artifact(token)
             content, media_type = _asset(artifact, tail)
             if media_type.startswith("text/html"):
-                session = await application.preview.app_session(token, None)
+                grant = await application.services.preview.resolve_ticket(token)
+                cookies = ()
+                session_id = None
+                if grant.environment == Environment.DEVELOPMENT and grant.share_id is None:
+                    platform_cookie = self._cookies().get("session")
+                    if platform_cookie is not None:
+                        try:
+                            actor = await application.services.identity.authenticate(
+                                platform_cookie.value)
+                        except DomainError:
+                            actor = None
+                        if actor is not None:
+                            await application.services.preview.dependencies.authorization.require(
+                                actor, "project:history", grant.project_id)
+                            session = await application.preview.app_session(
+                                token, None, actor.actor_id, actor.session_id)
+                            session_id = str(session.id)
+                else:
+                    cookie_name = ip_app_cookie_name(grant)
+                    prior = self._cookies().get(cookie_name)
+                    session = await application.preview.app_session(
+                        token, prior.value if prior else None)
+                    session_id = str(session.id)
+                    cookies = (f"{cookie_name}={session.id}; Path=/p/; Max-Age=2592000; "
+                               f"HttpOnly; SameSite=Lax{secure}",)
                 nonce = secrets.token_urlsafe(16)
-                content = self._ip_html(content, token, str(session.id), nonce)
-                self._write(200, content, media_type, csp=self._ip_csp(token, nonce))
+                content = self._ip_html(content, token, session_id, nonce)
+                self._write(200, content, media_type, cookies=cookies,
+                            csp=self._ip_csp(token, nonce))
             else:
                 self._write(200, content, media_type, csp=self._ip_csp(token))
 

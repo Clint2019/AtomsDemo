@@ -80,3 +80,5 @@ class PreviewGrant:
     environment: Environment
     expires_at: datetime
     public_author_id: EntityId | None = None
+    share_id: EntityId | None = None
+    owner_actor_id: EntityId | None = None
