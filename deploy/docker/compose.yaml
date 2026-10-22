@@ -1,0 +1,23 @@
+name: atoms-demo
+
+services:
+  app:
+    image: atoms-demo:${ATOMS_IMAGE_TAG:?set_ATOMS_IMAGE_TAG}
+    env_file: ${ATOMS_ENV_FILE:?set_ATOMS_ENV_FILE}
+    environment:
+      ATOMS_DOCKER_GID: ${ATOMS_DOCKER_GID:?set_ATOMS_DOCKER_GID}
+    volumes:
+      - ${ATOMS_DATA_DIR:?set_ATOMS_DATA_DIR}:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${ATOMS_SECRET_FILE:?set_ATOMS_SECRET_FILE}:/run/atoms/secret.env:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 10s
+      timeout: 4s
+      retries: 6

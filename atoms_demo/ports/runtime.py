@@ -48,6 +48,14 @@ class CommitFence(Protocol):
                            version_id: EntityId, lease_owner: str) -> None: ...
 
 
+class TaskMessageWriter(Protocol):
+    """Persist a task-related conversation message in the task's transaction."""
+    async def append(self, uow: UnitOfWork, scope: Scope, message_id: EntityId,
+                     project_id: EntityId, task_id: EntityId, role: str,
+                     content: str, previous_message_id: EntityId,
+                     created_at: datetime) -> None: ...
+
+
 class Clock(Protocol):
     def now(self) -> datetime: ...
 

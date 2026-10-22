@@ -1,0 +1,43 @@
+# Template for a Singapore public host. Replace bangbangsanquan.cloud only if
+# the domain changes. Caddy must persist /var/lib/caddy for ACME renewals.
+{
+	# Preview/share bearer tickets occur in the URL path. Runtime error logs
+	# must not write request URIs or headers to the systemd journal.
+	log default {
+		format filter {
+			request>uri delete
+			request>headers delete
+		}
+	}
+	servers {
+		strict_sni_host on
+	}
+	on_demand_tls {
+		ask http://127.0.0.1:8133/allow
+	}
+}
+
+app.bangbangsanquan.cloud {
+	root * /opt/atoms-demo/current/frontend/dist
+	@api path /api/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+		}
+	}
+	handle /healthz {
+		reverse_proxy 127.0.0.1:8000
+	}
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	# The application enforces the complete version/project host and ticket.
+	reverse_proxy 127.0.0.1:8132
+}

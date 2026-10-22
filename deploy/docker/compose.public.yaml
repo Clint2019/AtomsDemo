@@ -1,0 +1,41 @@
+services:
+  app:
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+
+  tls-permission:
+    image: atoms-demo:${ATOMS_IMAGE_TAG:?set_ATOMS_IMAGE_TAG}
+    entrypoint: ["python", "-m", "atoms_demo.api.tls_permission"]
+    network_mode: "service:app"
+    depends_on:
+      app:
+        condition: service_healthy
+    env_file: ${ATOMS_ENV_FILE:?set_ATOMS_ENV_FILE}
+    user: "10001:10001"
+    volumes:
+      - ${ATOMS_DATA_DIR:?set_ATOMS_DATA_DIR}:/data
+    read_only: true
+    restart: unless-stopped
+
+  web:
+    image: atoms-demo:${ATOMS_IMAGE_TAG:?set_ATOMS_IMAGE_TAG}
+    entrypoint: ["caddy", "run", "--config", "/etc/atoms-demo/Caddyfile.public", "--adapter", "caddyfile"]
+    network_mode: "service:app"
+    depends_on:
+      app:
+        condition: service_healthy
+      tls-permission:
+        condition: service_started
+    environment:
+      XDG_DATA_HOME: /data
+      XDG_CONFIG_HOME: /config
+    volumes:
+      - ${ATOMS_CADDY_DATA_DIR:?set_ATOMS_CADDY_DATA_DIR}:/data
+      - ${ATOMS_CADDY_CONFIG_DIR:?set_ATOMS_CADDY_CONFIG_DIR}:/config
+    read_only: true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped

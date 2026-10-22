@@ -4,6 +4,7 @@ import { request } from "../../api/client";
 import { ResourceStatus } from "../../api/ResourceStatus";
 import { useResource } from "../../api/useResource";
 import { newKey, Page } from "../../api/types";
+import { formatId } from "../../formatId";
 
 interface AppResource { id: string; environment: string; kind: string; name: string; status: string; revision: number }
 
@@ -61,5 +62,5 @@ export function ResourcesPanel({ projectId }: { projectId: string }) {
       <option value="database">数据库</option><option value="authentication">身份</option><option value="storage">存储</option><option value="secret">密钥</option></select></label>
     <button className="primary" disabled={busy}>添加配置</button></form>
     <h2>应用用户</h2><ResourceStatus loading={users.loading} error={users.error} retry={users.refresh} empty={users.data?.items.length === 0}>
-      {users.data?.items.map((id) => <p key={id} className="muted">{id}</p>)}</ResourceStatus></section></div>;
+      {users.data?.items.map((id) => <p key={id} className="muted compact-id" title={`应用用户 ID：${id}`}>用户 {formatId(id)}</p>)}</ResourceStatus></section></div>;
 }

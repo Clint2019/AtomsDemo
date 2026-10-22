@@ -1,0 +1,25 @@
+[Unit]
+Description=Atoms Demo API and preview runtime
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=atoms
+Group=atoms
+SupplementaryGroups=docker
+WorkingDirectory=/var/lib/atoms-demo
+EnvironmentFile=/etc/atoms-demo/atoms.env
+EnvironmentFile=/etc/atoms-demo/secret.env
+ExecStart=/opt/atoms-demo/venv/bin/python /opt/atoms-demo/current/main.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/atoms-demo
+
+[Install]
+WantedBy=multi-user.target

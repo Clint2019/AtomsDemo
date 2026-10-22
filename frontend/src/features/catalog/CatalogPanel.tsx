@@ -4,6 +4,7 @@ import { ApiRequestError, apiUrl, request } from "../../api/client";
 import { ResourceStatus } from "../../api/ResourceStatus";
 import { CatalogEntry, Page, PreviewTicket, Project } from "../../api/types";
 import { useResource } from "../../api/useResource";
+import { formatId } from "../../formatId";
 
 interface PublicProfile { user_id: string; display_name: string; public_slug: string; avatar: { id: string } | null }
 
@@ -95,7 +96,7 @@ export function CatalogPanel({ onOpen, publicView = false, initialAuthorId = "",
     return <section className="card detail-card"><button className="text-button" onClick={() => {
       ++detailRequest.current; setSelected(null); setSelectedPreview(null);
     }}>关闭详情</button>
-      <h2>{entry.title}</h2><p>{entry.description}</p><p className="muted">版本 {entry.version_id} · 作者 {entry.author_id}</p>
+      <h2>{entry.title}</h2><p>{entry.description}</p><p className="muted compact-id"><span title={`版本 ID：${entry.version_id}`}>版本 {formatId(entry.version_id)}</span> · <span title={`作者 ID：${entry.author_id}`}>作者 {formatId(entry.author_id)}</span></p>
       <div className="inline-form">{publicView
         ? <a href={`/authors/${encodeURIComponent(entry.author_id)}`}>查看作者主页</a>
         : <button onClick={() => { setAuthorId(entry.author_id); setSelected(null); resetPage(); }}>查看作者主页</button>}
@@ -105,7 +106,7 @@ export function CatalogPanel({ onOpen, publicView = false, initialAuthorId = "",
         <a href={`/works/${encodeURIComponent(entry.id)}`}>作品链接</a></div>
       {selectedPreview?.version_id === entry.version_id &&
         <iframe title={`${entry.title} 预览`} className="preview-frame desktop" src={selectedPreview.url}
-          sandbox="allow-scripts allow-forms" />}</section>;
+          sandbox={new URL(selectedPreview.url).hostname === window.location.hostname ? "allow-scripts allow-forms" : "allow-scripts allow-forms allow-same-origin"} />}</section>;
   }
   return <section className="page catalog-page"><div className="page-head"><h1>资源</h1></div>
     <div className="segmented catalog-tabs"><button className={kind === "public_project" ? "active" : ""} onClick={() => { setKind("public_project"); setCategory(""); resetPage(); }}>发现</button>
@@ -113,7 +114,7 @@ export function CatalogPanel({ onOpen, publicView = false, initialAuthorId = "",
     {authorId && <div className="card"><button onClick={() => { setAuthorId(""); resetPage(); }}>查看全部作者</button>
       <ResourceStatus loading={author.loading} error={author.error} retry={author.refresh}>
       <div className="inline-form">{author.data?.avatar && <img className="avatar" src={apiUrl(`/profiles/${authorId}/avatar`)} alt="作者头像" />}
-        <div><h2>{author.data?.display_name || (author.data ? "未设置名称的作者" : "作者资料不可用")}</h2><p className="muted">{author.data?.public_slug || authorId}</p></div></div></ResourceStatus></div>}
+        <div><h2>{author.data?.display_name || (author.data ? "未设置名称的作者" : "作者资料不可用")}</h2><p className="muted compact-id" title={author.data?.public_slug ? undefined : `作者 ID：${authorId}`}>{author.data?.public_slug || formatId(authorId)}</p></div></div></ResourceStatus></div>}
     <div className="catalog-filters"><div className="catalog-categories">
       <button className={!category ? "active" : ""} onClick={() => { setCategory(""); resetPage(); }}>全部</button>
       {categories.data?.map((item) => <button key={item} className={category === item ? "active" : ""}

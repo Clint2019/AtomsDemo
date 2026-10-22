@@ -1,0 +1,5 @@
+# Python 3.12 / Ubuntu 24.04 private staging, observed 2026-10-21.
+cffi==2.1.1
+cryptography==46.0.7
+pillow==12.3.0
+pycparser==3.11

@@ -30,15 +30,20 @@ export function errorMessage(cause: unknown): string {
 
 export function subscribeTaskEvents(taskId: string, after: number,
                                     onEvent: (event: TaskEvent) => void,
-                                    onTerminal?: (state: string) => void): () => void {
+                                    onTerminal?: (state: string) => void,
+                                    onConnectionStatus?: (connected: boolean) => void): () => void {
   const stream = new EventSource(apiUrl(`/tasks/${taskId}/events?after=${after}`), { withCredentials: true });
+  stream.addEventListener("open", () => onConnectionStatus?.(true));
+  stream.addEventListener("error", () => onConnectionStatus?.(false));
   const receive = (message: Event) => {
     try {
       const event = JSON.parse((message as MessageEvent<string>).data) as TaskEvent;
       if (Number.isInteger(event.sequence) && event.sequence > 0) onEvent(event);
     } catch { /* A malformed event must not stop future events. */ }
   };
-  for (const kind of ["queued", "generating", "building", "repairing", "succeeded", "failed"])
+  for (const kind of ["waiting_for_approval", "queued", "answering", "generating",
+                      "building", "repairing", "committing", "succeeded", "failed",
+                      "interrupted", "cancelled"])
     stream.addEventListener(kind, receive);
   stream.addEventListener("terminal", (message: Event) => {
     try {

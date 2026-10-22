@@ -1,0 +1,17 @@
+.message-search-panel { display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 18px; background: #fff; border-bottom: 1px solid #e9e9ec; }
+.message-search-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.message-search-head h2 { margin: 0; font-size: 16px; }
+.message-search-head button { border: 0; background: transparent; font-size: 24px; cursor: pointer; }
+.message-search-form { display: flex; gap: 8px; }
+.message-search-form input { flex: 1; min-width: 0; padding: 9px 11px; border: 1px solid #d7d9e0; border-radius: 9px; }
+.message-search-form button, .message-search-more { padding: 8px 12px; border: 1px solid #d7d9e0; border-radius: 9px; background: #f7f8fb; cursor: pointer; }
+.message-search-form button:disabled, .message-search-more:disabled { opacity: .5; cursor: default; }
+.message-search-results { display: grid; gap: 8px; max-height: min(48vh, 420px); overflow-y: auto; }
+.message-search-result { padding: 10px 12px; border: 1px solid #e9e9ec; border-radius: 10px; background: #fbfbfc; }
+.message-search-result > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.message-search-result strong { font-size: 12px; }
+.message-search-result time { color: #858996; font-size: 11px; }
+.message-search-result p { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.message-search-error { margin: 0; color: #a32b2b; font-size: 13px; }
+.message-search-hint { margin: 0; color: #777d89; font-size: 13px; }
+.message-search-more { align-self: center; }

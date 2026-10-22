@@ -37,6 +37,13 @@ class FileChangeSet:
     input_tokens: int
     output_tokens: int
 
+
+@dataclass(frozen=True, kw_only=True)
+class AnswerResult:
+    content: str
+    input_tokens: int
+    output_tokens: int
+
 @dataclass(frozen=True, kw_only=True)
 class RepairInput:
     generation: GenerationInput
@@ -47,3 +54,4 @@ class GenerationAPI(Protocol):
     async def models(self, ctx: RequestContext) -> tuple[ModelOption, ...]: ...
     async def generate(self, ctx: RequestContext, command: GenerationInput) -> FileChangeSet: ...
     async def repair(self, ctx: RequestContext, command: RepairInput) -> FileChangeSet: ...
+    async def answer(self, ctx: RequestContext, command: GenerationInput) -> AnswerResult: ...

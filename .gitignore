@@ -18,4 +18,9 @@ task.md
 docs/*
 !docs/contracts-index.json
 scripts/
-deploy/
+!scripts/
+scripts/*
+!scripts/package_release.py
+!scripts/package_docker_context.py
+deploy/**/*.env
+deploy/**/secret.*

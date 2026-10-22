@@ -1,0 +1,39 @@
+# Overseas public Docker deployment. Ports 80/443 are bound on the new host.
+{
+    log default {
+        format filter {
+            request>uri delete
+            request>headers delete
+        }
+    }
+    servers {
+        strict_sni_host on
+    }
+    on_demand_tls {
+        ask http://127.0.0.1:8133/allow
+    }
+}
+
+app.bangbangsanquan.cloud {
+    root * /opt/atoms-demo/frontend/dist
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1
+        }
+    }
+    handle /healthz {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+https:// {
+    tls {
+        on_demand
+    }
+    reverse_proxy 127.0.0.1:8132
+}

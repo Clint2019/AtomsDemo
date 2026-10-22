@@ -35,7 +35,7 @@ class Settings:
     build_docker_host: str = ""
     model_name: str = ""
     model_base_url: str = "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
-    model_max_output_tokens: int = 8192
+    model_max_output_tokens: int = 32768
     model_input_credits_per_million: int = 1000
     model_output_credits_per_million: int = 4000
     initial_build_credits: int = 0
@@ -242,7 +242,7 @@ def load_settings(environ: dict[str, str] | None = None) -> Settings:
         model_name=env.get("ATOMS_MODEL_NAME",
             "qwen3.7-plus" if provider == "aliyun_token_plan" else "").strip(),
         model_base_url=env.get("ATOMS_MODEL_BASE_URL", "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1").strip().rstrip("/"),
-        model_max_output_tokens=integer("ATOMS_MODEL_MAX_OUTPUT_TOKENS", 8192, 256, 65536),
+        model_max_output_tokens=integer("ATOMS_MODEL_MAX_OUTPUT_TOKENS", 32768, 256, 65536),
         model_input_credits_per_million=integer("ATOMS_MODEL_INPUT_CREDITS_PER_MILLION", 1000, 1, 1_000_000),
         model_output_credits_per_million=integer("ATOMS_MODEL_OUTPUT_CREDITS_PER_MILLION", 4000, 1, 1_000_000),
         initial_build_credits=integer("ATOMS_INITIAL_BUILD_CREDITS",

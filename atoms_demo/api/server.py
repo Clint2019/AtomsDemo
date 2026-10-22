@@ -426,6 +426,12 @@ def handler_type(settings: Settings, application: Application | None = None) -> 
                 history = (services.conversations.history_recent if recent == "true"
                            else services.conversations.history)
                 return 200, await history(ctx, EntityId(path.split("/")[4]), self._page()), ()
+            if operation == ("conversations", "search"):
+                terms = parse_qs(urlsplit(self.path).query).get("q", [])
+                if len(terms) != 1:
+                    raise DomainError(ErrorCode.INVALID_INPUT, "One message search query is required")
+                return 200, await services.conversations.search(
+                    ctx, EntityId(path.split("/")[4]), terms[0], self._page()), ()
             if operation == ("versions", "head"):
                 return 200, await services.versions.head(ctx, EntityId(path.split("/")[4])), ()
             if operation == ("versions", "list_versions"):
@@ -495,6 +501,18 @@ def handler_type(settings: Settings, application: Application | None = None) -> 
                 return 204, None, ()
             if operation == ("tasks", "get"):
                 return 200, await services.tasks.get(ctx, EntityId(path.rsplit("/", 1)[-1])), ()
+            if operation == ("tasks", "approval"):
+                return 200, await services.tasks.approval(ctx, EntityId(path.split("/")[4])), ()
+            if operation == ("tasks", "approve"):
+                indices = body.get("selected_indices")
+                if (not isinstance(indices, list) or not indices or
+                        any(type(index) is not int for index in indices)):
+                    raise DomainError(ErrorCode.INVALID_INPUT, "Invalid selected_indices")
+                note = body.get("additional_instructions", "")
+                if not isinstance(note, str):
+                    raise DomainError(ErrorCode.INVALID_INPUT, "Invalid additional_instructions")
+                return 200, await services.tasks.approve(ctx, EntityId(path.split("/")[4]),
+                    tuple(indices), note, self._mutation(body)), ()
             if operation == ("tasks", "active_for_project"):
                 return 200, await services.tasks.active_for_project(
                     ctx, EntityId(path.split("/")[4])), ()
@@ -502,8 +520,8 @@ def handler_type(settings: Settings, application: Application | None = None) -> 
                 return 200, await services.tasks.latest_for_project(
                     ctx, EntityId(path.split("/")[4])), ()
             if operation == ("tasks", "cancel"):
-                return 200, await services.tasks.cancel(ctx, EntityId(path.split("/")[4]),
-                    self._mutation(body)), ()
+                return 200, await application.generation.cancel(ctx,
+                    EntityId(path.split("/")[4]), self._mutation(body)), ()
             if operation == ("generation", "models"):
                 return 200, await services.generation.models(ctx), ()
             if operation == ("generation", "submit"):
@@ -513,11 +531,15 @@ def handler_type(settings: Settings, application: Application | None = None) -> 
                 revision = body.get("expected_head_revision")
                 if type(revision) is not int or revision < 0:
                     raise DomainError(ErrorCode.INVALID_INPUT, "Invalid expected_head_revision")
+                confirmed_build_intent = body.get("confirmed_build_intent", False)
+                if type(confirmed_build_intent) is not bool:
+                    raise DomainError(ErrorCode.INVALID_INPUT, "Invalid confirmed_build_intent")
                 command = GenerateApplication(project_id=EntityId(path.split("/")[4]),
                     prompt=self._string(body, "prompt"),
                     attachment_ids=tuple(EntityId(item) for item in raw_attachments),
                     model=self._string(body, "model"), agent_mode=self._string(body, "agent_mode"),
-                    expected_head_revision=revision, mutation=self._mutation(body))
+                    expected_head_revision=revision, mutation=self._mutation(body),
+                    confirmed_build_intent=confirmed_build_intent)
                 return 202, await application.generation.submit(ctx, command), ()
             if operation == ("generation", "edit"):
                 raw_edits = body.get("edits")

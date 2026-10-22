@@ -1,0 +1,25 @@
+[Unit]
+Description=Atoms Demo preview TLS permission service
+After=network-online.target atoms-demo.service
+Wants=network-online.target
+Requires=atoms-demo.service
+
+[Service]
+Type=simple
+User=atoms
+Group=atoms
+WorkingDirectory=/opt/atoms-demo/current
+EnvironmentFile=/etc/atoms-demo/atoms.env
+ExecStart=/opt/atoms-demo/venv/bin/python -m atoms_demo.api.tls_permission
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+# SQLite WAL readers may need to create/update the shared-memory sidecar;
+# the application connection itself is opened with mode=ro.
+ReadWritePaths=/var/lib/atoms-demo
+
+[Install]
+WantedBy=multi-user.target

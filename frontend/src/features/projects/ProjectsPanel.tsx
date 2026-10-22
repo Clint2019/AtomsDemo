@@ -4,6 +4,8 @@ import { ResourceStatus } from "../../api/ResourceStatus";
 import { request } from "../../api/client";
 import { Page, Project } from "../../api/types";
 import { useResource } from "../../api/useResource";
+import { formatId } from "../../formatId";
+import { classifyChatIntent } from "../../chatIntent";
 
 async function loadFavoriteIds(): Promise<string[]> {
   const ids: string[] = [];
@@ -18,7 +20,7 @@ async function loadFavoriteIds(): Promise<string[]> {
 }
 
 export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProjectsChanged }: {
-  onOpen: (id: string, prompt?: string) => void; mode?: "home" | "projects";
+  onOpen: (id: string, prompt?: string, intent?: "answer" | "build") => void; mode?: "home" | "projects";
   onNavigate?: (view: "projects" | "catalog", kind?: "public_project" | "template") => void;
   onProjectsChanged?: () => void;
 }) {
@@ -35,6 +37,8 @@ export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProject
   const [editingName, setEditingName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
+  const [homeIntent, setHomeIntent] = useState<"answer" | "clarify" | null>(null);
+  const [questionProjectId, setQuestionProjectId] = useState("");
   const projects = useResource(`projects:${favoritesOnly}:${cursor}`, () => request<Page<Project>>(
     `/projects?limit=100&favorites_only=${favoritesOnly}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`));
   const favoriteIds = useResource("favorite-project-ids", loadFavoriteIds);
@@ -43,8 +47,8 @@ export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProject
     if (preferences.data && !visibilityEdited) setVisibility(preferences.data.default_visibility);
   }, [preferences.data, visibilityEdited]);
 
-  async function create(event: FormEvent) {
-    event.preventDefault(); setError("");
+  async function createProject(intent?: "answer" | "build") {
+    setError("");
     if (preferences.loading || preferences.error || !preferences.data) {
       setError("默认可见性尚未加载，请重试后创建项目。");
       return;
@@ -53,9 +57,19 @@ export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProject
     try {
       const projectName = name.trim() || prompt.trim().slice(0, 40) || "未命名项目";
       const project = await mutate<Project>("/projects", "POST", { name: projectName, visibility });
-      setName(""); projects.refresh(); onProjectsChanged?.(); onOpen(project.id, prompt.trim());
+      setName(""); projects.refresh(); onProjectsChanged?.(); onOpen(project.id, prompt.trim(), intent);
     } catch (cause) { setError(errorMessage(cause)); }
     finally { setBusy(false); }
+  }
+
+  function create(event: FormEvent) {
+    event.preventDefault();
+    if (mode === "home") {
+      const intent = classifyChatIntent(prompt);
+      if (intent !== "build") { setHomeIntent(intent); return; }
+    }
+    setHomeIntent(null);
+    void createProject();
   }
 
   async function rename(event: FormEvent, project: Project) {
@@ -86,8 +100,25 @@ export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProject
       <div className="home-mascots" aria-hidden="true"><span>✦</span><span>●</span><span>✳</span><span>◕</span><span>✧</span><span>●</span><span>✦</span></div>
       <h1>你今天想创造什么？</h1>
       <form className="home-composer" onSubmit={create}>
-        <textarea aria-label="描述你的想法" value={prompt} onChange={(event) => setPrompt(event.target.value)}
+        <textarea aria-label="描述你的想法" value={prompt} onChange={(event) => {
+          setPrompt(event.target.value); setHomeIntent(null);
+        }}
           placeholder="描述你想创建的网站或应用…" rows={4} />
+        {homeIntent === "clarify" && <div className="notice" role="group" aria-label="确认首页消息意图">
+          <p>你想了解创建方法，还是现在开始创建应用？</p>
+          <div className="inline-form"><button type="button" onClick={() => setHomeIntent("answer")}>了解方法</button>
+            <button type="button" className="primary" disabled={busy} onClick={() => { setHomeIntent(null); void createProject("build"); }}>开始创建</button></div>
+        </div>}
+        {homeIntent === "answer" && <div className="notice" role="group" aria-label="选择问答项目">
+          <p>这是一个问题。请选择保存对话的项目；提问不会生成应用。</p>
+          {projects.error && <p role="alert">项目列表读取失败：{projects.error} <button type="button" onClick={projects.refresh}>重试</button></p>}
+          {!!projects.data?.items.length && <div className="inline-form"><select aria-label="选择问答项目" value={questionProjectId}
+            onChange={(event) => setQuestionProjectId(event.target.value)}><option value="">选择已有项目</option>
+            {projects.data.items.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+            <button type="button" disabled={!questionProjectId} onClick={() => onOpen(questionProjectId, prompt.trim(), "answer")}>在此项目提问</button></div>}
+          <button type="button" disabled={busy || preferences.loading || !!preferences.error || !preferences.data}
+            onClick={() => void createProject("answer")}>新建空项目并提问</button>
+        </div>}
         {showOptions && <div className="home-options">
           <label>项目名称<input value={name} onChange={(event) => setName(event.target.value)} placeholder="可选，默认使用需求开头" /></label>
           <label>可见性<select value={visibility} disabled={preferences.loading || !!preferences.error || !preferences.data}
@@ -133,7 +164,7 @@ export function ProjectsPanel({ onOpen, mode = "projects", onNavigate, onProject
           <button disabled={busy || !editingName.trim()}>保存</button>
           <button type="button" onClick={() => setEditingId("")}>取消</button>
         </form> : <h2>{project.name}</h2>}
-        <p className="muted">{project.id}</p>
+        <p className="muted compact-id" title={`项目 ID：${project.id}`}>项目编号 {formatId(project.id)}</p>
         <div className="inline-form"><button className="primary" onClick={() => onOpen(project.id)}>打开项目</button>
           <button disabled={busy || favoriteIds.loading || !!favoriteIds.error} onClick={() => setFavorite(project)}>
             {favoriteIds.data?.includes(project.id) ? "取消收藏" : "收藏"}</button>

@@ -178,6 +178,12 @@ def handler_type(settings: Settings, application: Application) -> type[BaseHTTPR
                 "headers.set('X-Preview-Session',session);" +
                 "return nativeFetch(prefix+raw,{...init,headers,credentials:'omit'});};" +
                 "})();</script>")
+            # Older Vite artifacts may contain root-relative /assets URLs even
+            # though new builds use relative paths. Keep these inside the ticket.
+            content = re.sub(br"\b(src|href)=(['\"])/(?!/)([^'\"]*)\2",
+                lambda match: match.group(1) + b"=" + match.group(2) +
+                    f"/p/{token}/".encode() + match.group(3) + match.group(2),
+                content, flags=re.IGNORECASE)
             match = re.search(br"<head(?:\s[^>]*)?>", content, re.IGNORECASE)
             if match is None:
                 raise DomainError(ErrorCode.INVALID_INPUT, "Preview HTML has no head")

@@ -1,0 +1,9 @@
+[Unit]
+Description=Renew Atoms Demo public IP TLS certificate
+Wants=network-online.target
+After=network-online.target nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/atoms-demo-certbot/bin/certbot renew --quiet --cert-name 8.137.197.104
+ExecStartPost=/usr/bin/openssl x509 -in /etc/letsencrypt/live/8.137.197.104/fullchain.pem -noout -checkend 86400

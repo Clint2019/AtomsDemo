@@ -1,0 +1,23 @@
+services:
+  app:
+    ports:
+      - "127.0.0.1:${ATOMS_PRIVATE_MAIN_PORT:-18080}:8080"
+      - "127.0.0.1:${ATOMS_PRIVATE_PREVIEW_PORT:-18001}:8001"
+
+  web:
+    image: atoms-demo:${ATOMS_IMAGE_TAG:?set_ATOMS_IMAGE_TAG}
+    entrypoint: ["caddy", "run", "--config", "/etc/atoms-demo/Caddyfile.private", "--adapter", "caddyfile"]
+    network_mode: "service:app"
+    depends_on:
+      app:
+        condition: service_healthy
+    user: "10001:10001"
+    environment:
+      XDG_DATA_HOME: /tmp/caddy-data
+      XDG_CONFIG_HOME: /tmp/caddy-config
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=16m
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped

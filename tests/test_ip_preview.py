@@ -64,7 +64,7 @@ class IpPreviewTests(unittest.TestCase):
                         mutation=Mutation(idempotency_key=f"version-{name}")))
                     archive_bytes = io.BytesIO()
                     with zipfile.ZipFile(archive_bytes, "w") as archive:
-                        archive.writestr("index.html", '<html><head></head><body><script type="module" src="./assets/app.js"></script></body></html>')
+                        archive.writestr("index.html", '<html><head></head><body><script type="module" src="/assets/app.js"></script></body></html>')
                         archive.writestr("assets/app.js", "fetch('/app/collections/items/records')")
                     artifact = await app.services.versions.dependencies.blobs.put(
                         archive_bytes.getvalue(), "application/zip")
@@ -92,6 +92,7 @@ class IpPreviewTests(unittest.TestCase):
                     response, html = request("GET", f"/p/{token_a}/", {"Cookie": "session=platform"})
                     self.assertEqual(response.status, 200)
                     self.assertIn(b"X-Preview-Session", html)
+                    self.assertIn(f'src="/p/{token_a}/assets/app.js"'.encode(), html)
                     self.assertIn(b"sandbox allow-scripts allow-forms", response.getheader("Content-Security-Policy").encode())
                     self.assertEqual(response.getheaders().count(("Set-Cookie", "session=platform")), 0)
                     response, asset = request("GET", f"/p/{token_a}/assets/app.js", {"Origin": "null"})

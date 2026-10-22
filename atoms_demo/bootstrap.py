@@ -6,7 +6,7 @@ from atoms_demo.api.application import Application
 from atoms_demo.adapters import (
     attachment_access, authorization, blob_store, build_executor, captcha_provider, catalog_source, commit_fence, deployment_verifier, event_store,
     job_queue, mail_provider, model_provider, oauth_provider, payment_provider, persistence, project_workspace,
-    secret_store, storage_pricing, usage_pricing, user_directory,
+    secret_store, storage_pricing, task_messages, usage_pricing, user_directory,
 )
 from atoms_demo.adapters.runtime import SystemClock, UUIDFactory
 from atoms_demo.ports.dependencies import (
@@ -56,8 +56,8 @@ from atoms_demo.services.conversations import (
     ConversationService, ConversationSummary, MessageMutation, decode_message,
 )
 from atoms_demo.contracts.conversations import Message
-from atoms_demo.services.tasks import TaskService, TaskLocator, TaskMutation, ActiveTask, ModelUsageRecord, decode_task
-from atoms_demo.contracts.tasks import Task
+from atoms_demo.services.tasks import TaskService, TaskLocator, TaskMutation, ActiveTask, ModelUsageRecord, decode_task, decode_approval
+from atoms_demo.contracts.tasks import Task, TaskApproval
 from atoms_demo.services.generation import GenerationService
 from atoms_demo.services.builds import BuildService
 from atoms_demo.services.versions import (
@@ -150,6 +150,7 @@ def compose_application(settings: Settings) -> Application:
     uow.register(WalletCurrency, "aggregate_billing_wallet_currencies", lambda data: WalletCurrency(**data))
     uow.register(StorageMeasurement, "aggregate_billing_storage_measurements", decode_storage_measurement)
     uow.register(Task, "aggregate_tasks", decode_task)
+    uow.register(TaskApproval, "aggregate_task_approvals", decode_approval)
     uow.register(TaskLocator, "aggregate_task_locators", lambda data: TaskLocator(**data))
     uow.register(TaskMutation, "aggregate_task_mutations", lambda data: TaskMutation(**data))
     uow.register(ActiveTask, "aggregate_task_active", lambda data: ActiveTask(**data))
@@ -211,7 +212,8 @@ def compose_application(settings: Settings) -> Application:
         conversations=ConversationService(ConversationDependencies(
             **common, attachments=attachment_access.create_adapter(settings))),
         tasks=TaskService(TaskDependencies(**common, events=events, queue=queue,
-                                           commit_fence=fence)),
+                                           commit_fence=fence,
+                                           messages=task_messages.RepositoryTaskMessageWriter())),
         generation=GenerationService(GenerationDependencies(**common,
             model=selected_model, model_name=settings.model_name,
             model_configured=isinstance(selected_model, model_provider.BailianTokenPlanProvider))),

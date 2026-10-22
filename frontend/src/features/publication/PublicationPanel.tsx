@@ -4,6 +4,7 @@ import { request } from "../../api/client";
 import { ResourceStatus } from "../../api/ResourceStatus";
 import { Publication } from "../../api/types";
 import { useResource } from "../../api/useResource";
+import { formatId } from "../../formatId";
 
 interface Uploaded { blob: { id: string; sha256: string; size_bytes: number; media_type: string } }
 
@@ -62,7 +63,7 @@ export function PublicationPanel({ projectId, versionId }: { projectId: string; 
       <button className="primary" disabled={!versionId || busy || publication.loading || !!publication.error}>保存发布配置</button></form>
     <ResourceStatus loading={publication.loading} error={publication.error} retry={publication.refresh}>
       {item ? <div className="status-block"><strong>状态：{item.state}</strong>
-        <p>目标版本：{item.version_id}</p><p>线上版本：{item.live_version_id || "无"}</p>
+        <p className="compact-id" title={`目标版本 ID：${item.version_id}`}>目标版本：{formatId(item.version_id)}</p><p className="compact-id" title={item.live_version_id ? `线上版本 ID：${item.live_version_id}` : undefined}>线上版本：{item.live_version_id ? formatId(item.live_version_id) : "无"}</p>
         <p>线上地址：{item.public_url || "尚未核验"}</p>
         {item.pending_action && <p className="notice">等待人工操作：{item.pending_action}</p>}</div>
         : <p className="muted">尚未配置发布。</p>}

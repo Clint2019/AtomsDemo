@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Atoms Demo six-day IP TLS certificate four times daily
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:17:00
+RandomizedDelaySec=15m
+Persistent=true
+Unit=atoms-ip-certbot-renew.service
+
+[Install]
+WantedBy=timers.target

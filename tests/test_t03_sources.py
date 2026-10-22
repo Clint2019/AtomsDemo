@@ -22,7 +22,7 @@ from atoms_demo.contracts.storage import Upload
 from atoms_demo.contracts.conversations import AppendMessage, MessageRole
 from atoms_demo.contracts.versions import CreateVersion, FileEntry, PromoteVersion
 from atoms_demo.core.errors import DomainError, ErrorCode
-from atoms_demo.core.types import Mutation, PageQuery, RequestContext, Scope
+from atoms_demo.core.types import EntityId, Mutation, PageQuery, RequestContext, Scope
 from tests.test_workspace_profiles import CaptchaStub, MailStub
 
 
@@ -142,6 +142,30 @@ class T03Tests(unittest.TestCase):
                         project_id=second.id, role=MessageRole.USER, content="other project",
                         attachment_ids=(), task_id=None,
                         mutation=Mutation(idempotency_key="other-message")))
+                    first_matches = await app.services.conversations.search(
+                        ctx, project.id, "LATER-", PageQuery(limit=2))
+                    self.assertEqual([item.id for item in first_matches.items],
+                                     [later[3].id, later[2].id])
+                    second_matches = await app.services.conversations.search(
+                        ctx, project.id, "later-", PageQuery(cursor=first_matches.next_cursor, limit=2))
+                    self.assertEqual([item.id for item in second_matches.items],
+                                     [later[1].id, later[0].id])
+                    self.assertIsNone(second_matches.next_cursor)
+                    self.assertEqual((await app.services.conversations.search(
+                        ctx, second.id, "later-", PageQuery())).items, ())
+                    for invalid_query, invalid_page in ((" ", PageQuery()),
+                                                        ("x" * 201, PageQuery()),
+                                                        ("later-", PageQuery(limit=101)),
+                                                        ("later-", PageQuery(cursor=other_message.id))):
+                        with self.assertRaises(DomainError) as invalid_search:
+                            await app.services.conversations.search(
+                                ctx, project.id, invalid_query, invalid_page)
+                        self.assertEqual(invalid_search.exception.code, ErrorCode.INVALID_INPUT)
+                    with self.assertRaises(DomainError) as denied_search:
+                        await app.services.conversations.search(
+                            replace(ctx, actor_id=EntityId("search-outsider")),
+                            project.id, "later-", PageQuery())
+                    self.assertEqual(denied_search.exception.code, ErrorCode.FORBIDDEN)
                     for target_id, foreign_cursor in ((project.id, str(other_message.id)),
                                                       (second.id, str(later[0].id))):
                         for history in (app.services.conversations.history,

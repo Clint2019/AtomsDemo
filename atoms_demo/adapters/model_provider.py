@@ -11,7 +11,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from atoms_demo.config import Settings
-from atoms_demo.contracts.generation import FileChangeSet, GenerationInput, RepairInput, SourceFile
+from atoms_demo.contracts.generation import AnswerResult, FileChangeSet, GenerationInput, RepairInput, SourceFile
 from atoms_demo.core.errors import DomainError, ErrorCode, MeteredProviderError, UnsentModelError
 from atoms_demo.ports.providers import ModelProvider
 from atoms_demo.ports.runtime import BlobStore
@@ -49,6 +49,9 @@ class UnconfiguredModelProvider:
         raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model provider is not configured")
 
     async def repair(self, command: RepairInput) -> FileChangeSet:
+        raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model provider is not configured")
+
+    async def answer(self, command: GenerationInput) -> AnswerResult:
         raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model provider is not configured")
 
 
@@ -202,7 +205,10 @@ class BailianTokenPlanProvider:
             "Collection names must be lowercase letters, digits or underscore starting with a letter. "
             "Do not hardcode a project ID, preview host or token."
         )
-        payload = json.dumps({"model": self.model, "max_tokens": self.max_output_tokens,
+        # max_tokens can truncate a structured JSON answer. The completion cap
+        # includes reasoning and stays aligned with the credit reservation.
+        payload = json.dumps({"model": self.model,
+                              "max_completion_tokens": self.max_output_tokens,
                               "response_format": _FILE_CHANGES_FORMAT,
                               "messages": [{"role": "system", "content": instruction},
                                            {"role": "user", "content": content}]},
@@ -232,6 +238,55 @@ class BailianTokenPlanProvider:
 
     async def repair(self, command: RepairInput) -> FileChangeSet:
         return await self._complete(command.generation, command.diagnostics)
+
+    async def answer(self, command: GenerationInput) -> AnswerResult:
+        content = await self._content(command)
+        instruction = (
+            "You are Atoms, an assistant for planning and using a web application builder. "
+            "Answer the user's question in the user's language. Explain steps concretely and "
+            "use the supplied project context only when relevant. This is a question-answering "
+            "turn: do not generate source files, claim that you changed the project, or imply "
+            "that an application was built. If the user wants an application made, explain that "
+            "they can send an explicit build request. Keep the answer concise and truthful."
+        )
+        payload = json.dumps({"model": self.model,
+                              "max_completion_tokens": min(self.max_output_tokens, 8192),
+                              "messages": [{"role": "system", "content": instruction},
+                                           {"role": "user", "content": content}]},
+                             ensure_ascii=False).encode("utf-8")
+        if len(payload) > _MAX_REQUEST_BYTES:
+            raise UnsentModelError(ErrorCode.INVALID_INPUT, "Model request is too large")
+        started = time.monotonic()
+        phase = "transport"
+        try:
+            response = await asyncio.to_thread(self._post, payload)
+            phase = "response_validation"
+            usage = response.get("usage")
+            if not isinstance(usage, dict):
+                raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model returned missing usage")
+            input_tokens = usage.get("prompt_tokens", usage.get("input_tokens"))
+            output_tokens = usage.get("completion_tokens", usage.get("output_tokens"))
+            if (type(input_tokens) is not int or type(output_tokens) is not int or
+                    input_tokens < 0 or output_tokens < 0):
+                raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model returned invalid usage")
+            try:
+                answer = response["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                answer = None
+            if not isinstance(answer, str) or not answer.strip() or len(answer) > 16_000:
+                raise MeteredProviderError("Model returned invalid answer", input_tokens, output_tokens)
+            return AnswerResult(content=answer.strip(), input_tokens=input_tokens,
+                                output_tokens=output_tokens)
+        except DomainError as exc:
+            _LOG.warning("Model call failed task_id=%s phase=%s elapsed_ms=%d code=%s reason=%s",
+                         command.task_id, phase, int((time.monotonic() - started) * 1000),
+                         exc.code.value, exc.message)
+            raise
+        except Exception as exc:
+            _LOG.warning("Model call failed task_id=%s phase=%s elapsed_ms=%d error_type=%s",
+                         command.task_id, phase, int((time.monotonic() - started) * 1000),
+                         type(exc).__name__)
+            raise
 
 
 def create_adapter(settings: Settings, blobs: BlobStore | None = None) -> ModelProvider:

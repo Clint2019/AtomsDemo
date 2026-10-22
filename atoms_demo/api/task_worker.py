@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from threading import Event
+from time import monotonic
 from uuid import uuid4
 
 from atoms_demo.api.application import Application
@@ -46,11 +47,14 @@ async def recover(application: Application) -> None:
             except DomainError:
                 head = None
             if head and head.version_id == task.result_version_id:
+                await application.generation.ensure_assistant_reply(ctx, task)
                 task = await application.services.tasks.reconcile_committed(
                     task.id, task.result_version_id)
         if task.state in {TaskState.INTERRUPTED, TaskState.FAILED, TaskState.CANCELLED}:
             try:
                 await compensate(application, task)
+                if task.state == TaskState.INTERRUPTED:
+                    await application.generation.recover_answer(ctx, task)
             except DomainError:
                 logging.exception("Task compensation remains pending: %s", task.id)
 
@@ -83,6 +87,7 @@ async def run_once(application: Application, worker_id: str, lease_seconds: int)
                     return
 
     heartbeat = asyncio.create_task(pulse())
+    recover_after_ack = None
     try:
         ctx = await application.services.tasks.execution_context(task_id)
         try:
@@ -101,6 +106,15 @@ async def run_once(application: Application, worker_id: str, lease_seconds: int)
                         "authorization_revoked")
                 else:
                     raise
+        elif task.state == TaskState.COMMITTING and task.result_version_id:
+            head = await application.services.versions.head(ctx, task.project_id)
+            if head.version_id == task.result_version_id:
+                await application.generation.ensure_assistant_reply(ctx, task)
+                task = await application.services.tasks.reconcile_committed(
+                    task.id, task.result_version_id)
+            else:
+                task = await application.services.tasks.interrupt_execution(task_id,
+                    "worker_unavailable")
         elif task.state not in {TaskState.SUCCEEDED, TaskState.FAILED, TaskState.CANCELLED,
                                 TaskState.INTERRUPTED}:
             task = await application.services.tasks.interrupt_execution(task_id,
@@ -110,12 +124,17 @@ async def run_once(application: Application, worker_id: str, lease_seconds: int)
             await compensate(application, task)
         acknowledge = task.state in {TaskState.SUCCEEDED, TaskState.FAILED,
                                      TaskState.CANCELLED, TaskState.INTERRUPTED}
+        if task.state == TaskState.INTERRUPTED and task.request.agent_mode == "answer":
+            recover_after_ack = (ctx, task)
     finally:
         pulse_stop.set()
         await heartbeat
         if acknowledge:
             try:
                 await application.queue.acknowledge(task_id, worker_id)
+                if recover_after_ack is not None:
+                    ctx, interrupted = recover_after_ack
+                    await application.generation.recover_answer(ctx, interrupted)
             except ValueError:
                 logging.warning("Task lease was lost before acknowledgement: %s", task_id)
     return True
@@ -130,8 +149,12 @@ async def run_forever(application: Application, lease_seconds: int, stop: Event)
             logging.exception("Local task recovery failed; retrying")
             await asyncio.sleep(1)
     worker_id = uuid4().hex
+    next_recovery = monotonic() + 30
     while not stop.is_set():
         try:
+            if monotonic() >= next_recovery:
+                await recover(application)
+                next_recovery = monotonic() + 30
             if not await run_once(application, worker_id, lease_seconds):
                 await asyncio.sleep(0.5)
         except Exception:

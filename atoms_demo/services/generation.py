@@ -1,6 +1,6 @@
 """Generation API validation around an injected model provider."""
 from __future__ import annotations
-from atoms_demo.contracts.generation import ModelOption, GenerationInput, FileChangeSet, RepairInput
+from atoms_demo.contracts.generation import AnswerResult, ModelOption, GenerationInput, FileChangeSet, RepairInput
 from atoms_demo.core.errors import DomainError, ErrorCode, MeteredProviderError, UnsentModelError
 from atoms_demo.core.types import RequestContext
 from atoms_demo.ports.dependencies import GenerationDependencies
@@ -48,3 +48,16 @@ class GenerationService:
         if not self.dependencies.model_configured:
             raise UnsentModelError(ErrorCode.PROVIDER_UNAVAILABLE, "Model provider is not configured")
         return self._output(await self.dependencies.model.repair(command))
+
+    async def answer(self, ctx: RequestContext, command: GenerationInput) -> AnswerResult:
+        self._input(ctx, command)
+        if not self.dependencies.model_configured:
+            raise UnsentModelError(ErrorCode.PROVIDER_UNAVAILABLE, "Model provider is not configured")
+        result = await self.dependencies.model.answer(command)
+        if (type(result.input_tokens) is not int or type(result.output_tokens) is not int or
+                result.input_tokens < 0 or result.output_tokens < 0):
+            raise DomainError(ErrorCode.PROVIDER_UNAVAILABLE, "Model returned invalid usage")
+        if not isinstance(result.content, str) or not result.content.strip() or len(result.content) > 16_000:
+            raise MeteredProviderError("Model returned invalid answer",
+                                       result.input_tokens, result.output_tokens)
+        return result

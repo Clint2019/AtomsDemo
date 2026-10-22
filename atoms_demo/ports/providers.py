@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 from atoms_demo.core.types import BlobRef, EntityId
-from atoms_demo.contracts.generation import FileChangeSet, GenerationInput, RepairInput
+from atoms_demo.contracts.generation import AnswerResult, FileChangeSet, GenerationInput, RepairInput
 from atoms_demo.contracts.builds import BuildInput, BuildResult, ScanResult
 from atoms_demo.contracts.billing import Checkout, Money
 from atoms_demo.core.metering import StorageMetering
@@ -12,6 +12,7 @@ from atoms_demo.contracts.publication import PublicationConfig, ManualDeployment
 class ModelProvider(Protocol):
     async def generate(self, command: GenerationInput) -> FileChangeSet: ...
     async def repair(self, command: RepairInput) -> FileChangeSet: ...
+    async def answer(self, command: GenerationInput) -> AnswerResult: ...
 
 
 class BuildExecutor(Protocol):

@@ -5,6 +5,7 @@ import { formatMoney, parseCnyMinorUnits } from "../../api/money";
 import { ResourceStatus } from "../../api/ResourceStatus";
 import { Page, Project } from "../../api/types";
 import { useResource } from "../../api/useResource";
+import { formatId } from "../../formatId";
 
 interface Profile { user_id: string; display_name: string; public_slug: string; avatar: { id: string; media_type: string } | null; revision: number }
 interface Preferences { locale: string; default_model: string; default_visibility: string; credit_reminders: boolean; sound: boolean; email_notifications: boolean; branding: boolean; revision: number }
@@ -48,10 +49,6 @@ function formatLedgerDate(value: string): string {
     timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", hour12: false,
   }).format(date);
-}
-
-function shortUserId(id: string): string {
-  return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
 
 function formatStorageMb(bytes: number | null | undefined): string {
@@ -340,7 +337,7 @@ export function AccountPanel({ userId }: { userId: string }) {
       empty={members.data?.items.length === 0}>{members.data?.items.map((member) => {
         const displayName = (member.user_id === userId ? profile.data?.display_name : memberNames.data?.[member.user_id])?.trim()
           || memberNames.data?.[member.user_id] || "未设置用户名";
-        const shortId = shortUserId(member.user_id);
+        const shortId = formatId(member.user_id);
         return <div className="history-row member-row" key={member.id}>
           <div className="member-identity"><span className="member-avatar" aria-hidden="true">{displayName === "未设置用户名" ? "?" : displayName[0]}</span>
             <div><strong>{displayName}</strong><p className="muted" title={`用户 ID：${member.user_id}`}>
@@ -359,7 +356,7 @@ export function AccountPanel({ userId }: { userId: string }) {
         <small>已预留 {formatAccountUnits(balance.reserved, balance.account, balance.unit)}</small>
       </div>)}</div></ResourceStatus>
       <h2>当前订阅</h2><ResourceStatus loading={subscription.loading} error={subscription.error} retry={subscription.refresh}>
-        <p>{subscription.data ? `${subscription.data.plan_id} · ${subscription.data.status}` : "暂无订阅"}</p></ResourceStatus>
+        <p>{subscription.data ? `${plans.data?.find((plan) => plan.id === subscription.data?.plan_id)?.name || formatId(subscription.data.plan_id)} · ${subscription.data.status}` : "暂无订阅"}</p></ResourceStatus>
       <h2>账目与项目费用</h2><div className="inline-form"><label>账户<select value={ledgerAccount} onChange={(event) => {
         setLedgerAccount(event.target.value as "build_credits" | "cloud_wallet"); setLedgerCursor(null); setLedgerBack([]);
       }}><option value="build_credits">生成积分</option><option value="cloud_wallet">云钱包</option></select></label>

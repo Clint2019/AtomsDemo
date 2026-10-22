@@ -135,6 +135,36 @@ class ConversationService:
         next_cursor = str(selected[-1].id) if start + page.limit < len(messages) else None
         return Page(items=tuple(reversed(selected)), next_cursor=next_cursor)
 
+    async def search(self, ctx: RequestContext, project_id: EntityId, query: str,
+                     page: PageQuery) -> Page[Message]:
+        await self.dependencies.authorization.require(ctx, "project:history", project_id)
+        if (type(query) is not str or not 1 <= len(query.strip()) <= 200 or
+                not 1 <= page.limit <= 100):
+            raise DomainError(ErrorCode.INVALID_INPUT, "Invalid message search")
+        needle = query.strip().casefold()
+        scope = self._scope(ctx, project_id)
+        async with self.dependencies.uow() as uow:
+            cursor = None
+            matches: list[Message] = []
+            while True:
+                listing = await uow.repository(Message).list(scope, PageQuery(cursor=cursor, limit=100))
+                matches.extend(item for item in listing.items if needle in item.content.casefold())
+                if listing.next_cursor is None:
+                    break
+                cursor = listing.next_cursor
+        matches.sort(key=lambda item: (item.created_at, str(item.id)), reverse=True)
+        if page.cursor:
+            try:
+                start = next(index + 1 for index, item in enumerate(matches)
+                             if str(item.id) == page.cursor)
+            except StopIteration:
+                raise DomainError(ErrorCode.INVALID_INPUT, "Invalid message search cursor") from None
+        else:
+            start = 0
+        selected = matches[start:start + page.limit]
+        next_cursor = str(selected[-1].id) if start + page.limit < len(matches) else None
+        return Page(items=tuple(selected), next_cursor=next_cursor)
+
     async def summarize(self, ctx: RequestContext, project_id: EntityId) -> str:
         await self.dependencies.authorization.require(ctx, "project:history", project_id)
         scope = self._scope(ctx, project_id)

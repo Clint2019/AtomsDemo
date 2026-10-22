@@ -16,6 +16,18 @@ interface Identity { user_id: string; workspace_id: string | null }
 interface Workspace { id: string; name: string; revision: number }
 type View = "home" | "projects" | "catalog" | "account" | "editor";
 
+function chatProjectFromPath(): string {
+  return /^\/chat\/([A-Za-z0-9_-]{1,128})$/.exec(window.location.pathname)?.[1] || "";
+}
+
+function workspaceViewFromPath(): View {
+  if (chatProjectFromPath()) return "editor";
+  if (window.location.pathname === "/projects") return "projects";
+  if (window.location.pathname === "/catalog") return "catalog";
+  if (window.location.pathname === "/account") return "account";
+  return "home";
+}
+
 function publicCatalogRoute(): { authorId: string; entryId: string } | null {
   const path = window.location.pathname;
   if (path === "/discover") return { authorId: "", entryId: "" };
@@ -44,10 +56,11 @@ export function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [checking, setChecking] = useState(true);
   const [workspaceList, setWorkspaceList] = useState<Workspace[]>([]);
-  const [view, setView] = useState<View>(() => window.location.pathname === "/projects" ? "projects" : "home");
+  const [view, setView] = useState<View>(workspaceViewFromPath);
   const [catalogKind, setCatalogKind] = useState<"public_project" | "template">("public_project");
-  const [projectId, setProjectId] = useState("");
+  const [projectId, setProjectId] = useState(chatProjectFromPath);
   const [initialPrompt, setInitialPrompt] = useState("");
+  const [initialIntent, setInitialIntent] = useState<"answer" | "build" | undefined>();
   const [workspaceName, setWorkspaceName] = useState("");
   const [error, setError] = useState("");
   const sidebarProjects = useResource(`sidebar-projects:${identity?.workspace_id ?? ""}:${view}`,
@@ -68,6 +81,17 @@ export function App() {
     } finally { setChecking(false); }
   }
   useEffect(() => { if (!publicRoute) void refreshIdentity(); }, []);
+  useEffect(() => {
+    const syncRoute = () => {
+      const chatId = chatProjectFromPath();
+      setProjectId(chatId);
+      setInitialPrompt("");
+      setInitialIntent(undefined);
+      setView(workspaceViewFromPath());
+    };
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
   useEffect(() => {
     if (verificationToken || invitationToken) window.history.replaceState(null, "", "/");
   }, [verificationToken, invitationToken]);
@@ -99,9 +123,19 @@ export function App() {
     try {
       await request("/identity/logout", { method: "POST", body: "{}" });
       setIdentity(null); setProjectId(""); setView("home");
+      window.history.replaceState(null, "", "/");
     } catch (cause) { setError(errorMessage(cause)); }
   }
-  function openProject(id: string, prompt = "") { setProjectId(id); setInitialPrompt(prompt); setView("editor"); }
+  function navigate(next: View) {
+    const path = next === "projects" ? "/projects" : next === "catalog" ? "/catalog" :
+      next === "account" ? "/account" : next === "editor" && projectId ? `/chat/${projectId}` : "/";
+    if (window.location.pathname !== path) window.history.pushState(null, "", path);
+    setView(next);
+  }
+  function openProject(id: string, prompt = "", intent?: "answer" | "build") {
+    window.history.pushState(null, "", `/chat/${id}`);
+    setProjectId(id); setInitialPrompt(prompt); setInitialIntent(intent); setView("editor");
+  }
 
   if (verificationToken) return <AuthPanel initialVerificationToken={verificationToken}
     onAuthenticated={() => { setVerificationToken(""); void refreshIdentity(); }} />;
@@ -133,10 +167,10 @@ export function App() {
         {workspaceList.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
       </select>
       <nav aria-label="主导航">
-        <button className={view === "home" ? "selected" : ""} onClick={() => setView("home")}><span aria-hidden="true">⌂</span>首页</button>
-        <button className={view === "catalog" ? "selected" : ""} onClick={() => { setCatalogKind("public_project"); setView("catalog"); }}><span aria-hidden="true">◉</span>资源</button>
-        <button className={view === "projects" ? "selected" : ""} onClick={() => setView("projects")}><span aria-hidden="true">▣</span>我的项目</button>
-        {projectId && <button className={view === "editor" ? "selected" : ""} onClick={() => setView("editor")}><span aria-hidden="true">▤</span>当前项目</button>}
+        <button className={view === "home" ? "selected" : ""} onClick={() => navigate("home")}><span aria-hidden="true">⌂</span>首页</button>
+        <button className={view === "catalog" ? "selected" : ""} onClick={() => { setCatalogKind("public_project"); navigate("catalog"); }}><span aria-hidden="true">◉</span>资源</button>
+        <button className={view === "projects" ? "selected" : ""} onClick={() => navigate("projects")}><span aria-hidden="true">▣</span>我的项目</button>
+        {projectId && <button className={view === "editor" ? "selected" : ""} onClick={() => navigate("editor")}><span aria-hidden="true">▤</span>当前项目</button>}
       </nav>
       <div className="sidebar-projects">
         {sidebarProjects.data && sidebarProjects.data.items.length > 0 ? <>
@@ -145,21 +179,23 @@ export function App() {
             .map((project) => <button key={project.id} title={project.name} onClick={() => openProject(project.id)}>
               <span aria-hidden="true">▤</span><span>{project.name}</span>
             </button>)}
-          {sidebarProjects.data.next_cursor && <button onClick={() => setView("projects")}>查看全部</button>}
+          {sidebarProjects.data.next_cursor && <button onClick={() => navigate("projects")}>查看全部</button>}
         </> : !sidebarProjects.loading && !sidebarProjects.error && <div className="sidebar-empty">还没有项目<br />点击“首页”开始。</div>}
       </div>
-      <div className="sidebar-bottom"><button className={view === "account" ? "selected" : ""} onClick={() => setView("account")}><span className="account-avatar" aria-hidden="true">A</span><span>账户设置</span></button><button className="sidebar-logout" onClick={logout}>退出登录</button></div>
+      <div className="sidebar-bottom"><button className={view === "account" ? "selected" : ""} onClick={() => navigate("account")}><span className="account-avatar" aria-hidden="true">A</span><span>账户设置</span></button><button className="sidebar-logout" onClick={logout}>退出登录</button></div>
     </aside>
     <main className="main-panel">
       {error && <p role="alert" className="notice error">{error}</p>}
       {view === "home" && <ProjectsPanel mode="home" onOpen={openProject} onProjectsChanged={sidebarProjects.refresh}
-        onNavigate={(next, kind) => { if (kind) setCatalogKind(kind); setView(next); }} />}
+        onNavigate={(next, kind) => { if (kind) setCatalogKind(kind); navigate(next); }} />}
       {view === "projects" && <ProjectsPanel mode="projects" onOpen={openProject} onProjectsChanged={sidebarProjects.refresh} />}
       {view === "catalog" && <CatalogPanel key={catalogKind} initialKind={catalogKind} onOpen={openProject} />}
-      {view === "account" && <><button className="account-back" onClick={() => setView("home")}>‹　返回</button>
+      {view === "account" && <><button className="account-back" onClick={() => navigate("home")}>‹　返回</button>
         <AccountPanel key={`${identity.user_id}:${identity.workspace_id}`} userId={identity.user_id} /></>}
       {view === "editor" && projectId && <EditorPanel key={`${projectId}:${identity.workspace_id}`} projectId={projectId}
-        actorId={identity.user_id} workspaceId={identity.workspace_id} initialPrompt={initialPrompt} onBack={() => setView("projects")}
+        actorId={identity.user_id} workspaceId={identity.workspace_id} initialPrompt={initialPrompt}
+        initialIntent={initialIntent} onInitialPromptConsumed={() => { setInitialPrompt(""); setInitialIntent(undefined); }}
+        onBack={() => navigate("projects")}
         publication={(versionId) => <PublicationPanel projectId={projectId} versionId={versionId} />}
         resources={<ResourcesPanel projectId={projectId} />}
         catalog={(versionId, visibility, onVisibilityChange) => <PublishPanel projectId={projectId} versionId={versionId}

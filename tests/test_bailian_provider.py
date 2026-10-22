@@ -68,6 +68,8 @@ class BailianProviderTests(unittest.TestCase):
             second = json.loads(payloads[1]["messages"][1]["content"])
             response_format = payloads[0]["response_format"]
             self.assertEqual(response_format["type"], "json_schema")
+            self.assertNotIn("max_tokens", payloads[0])
+            self.assertEqual(payloads[0]["max_completion_tokens"], settings.model_max_output_tokens)
             self.assertTrue(response_format["json_schema"]["strict"])
             schema = response_format["json_schema"]["schema"]
             self.assertEqual(set(schema["required"]), {"summary", "upserts", "deleted_paths"})

@@ -1,0 +1,30 @@
+# SSH-tunnel-only private Docker deployment. Host port binding is loopback.
+{
+    log default {
+        format filter {
+            request>uri delete
+            request>headers delete
+        }
+    }
+}
+
+:8080 {
+    root * /opt/atoms-demo/frontend/dist
+    @api path /api/*
+    handle @api {
+        reverse_proxy 127.0.0.1:8000 {
+            flush_interval -1
+        }
+    }
+    handle /healthz {
+        reverse_proxy 127.0.0.1:8000
+    }
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}
+
+:8001 {
+    reverse_proxy 127.0.0.1:8132
+}

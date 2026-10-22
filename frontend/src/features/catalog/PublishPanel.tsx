@@ -46,6 +46,6 @@ export function PublishPanel({ projectId, versionId, visibility, onVisibilityCha
       <label>简介<textarea rows={4} maxLength={2000} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <button className="primary" disabled={!versionId || visibility !== "public" || busy}>发布固定版本</button></form>
     {error && <p role="alert" className="notice error">{error}</p>}
-    {result && <p role="status" className="notice">目录条目已创建：{result.id}</p>}
+    {result && <p role="status" className="notice">目录条目已创建。<a href={`/works/${encodeURIComponent(result.id)}`}>查看作品</a></p>}
   </section>;
 }
