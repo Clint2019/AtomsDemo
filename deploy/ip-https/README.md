@@ -22,7 +22,7 @@ curl -sS -o /dev/null -w '%{http_code}\n' https://8.137.197.104:18443/
 curl -sS -o /dev/null -w '%{http_code}\n' http://8.137.197.104/.well-known/acme-challenge/no-such-file
 ```
 
-The expected statuses are `200`, `404`, and `404`. The last check verifies public reachability of the renewal listener; its 404 is intentional. Also inspect `systemctl status atoms-ip-certbot-renew.timer`, `systemctl status atoms-ip-certbot-renew.service`, and `openssl x509 -in /etc/letsencrypt/live/8.137.197.104/fullchain.pem -noout -dates -ext subjectAltName`.
+The expected statuses before cutover are `200`, `403`, and `404`. The preview returns `403` because the running app still expects the old HTTP Host. After cutover, its root returns `404`. The last check verifies public reachability of the renewal listener; its 404 is intentional. Also inspect `systemctl status atoms-ip-certbot-renew.timer`, `systemctl status atoms-ip-certbot-renew.service`, and `openssl x509 -in /etc/letsencrypt/live/8.137.197.104/fullchain.pem -noout -dates -ext subjectAltName`.
 
 ## Switch origins and old HTTP links
 

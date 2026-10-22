@@ -95,7 +95,7 @@ curl --noproxy '*' --silent --show-error --fail --max-time 10 \
 code=$(curl --noproxy '*' --silent --show-error --max-time 10 --output /dev/null \
     --write-out '%{http_code}' --connect-to "$IP:18443:$BIND:18443" \
     "https://$IP:18443/")
-test "$code" = 404 || { echo "Unexpected preview root HTTP $code" >&2; exit 2; }
+test "$code" = 403 || { echo "Unexpected pre-cutover preview root HTTP $code" >&2; exit 2; }
 /usr/bin/systemctl start atoms-ip-certbot-renew.service
 
 printf 'tls_prepared=true certificate_name=%s https_preview_port=18443\n' "$IP"

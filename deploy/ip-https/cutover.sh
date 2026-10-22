@@ -18,12 +18,20 @@ cmp -s "$HERE/nginx-https.conf" /etc/nginx/conf.d/atoms-ip-https.conf || {
 test -f /etc/nginx/conf.d/atoms-ip-direct-private.conf
 openssl x509 -in "/etc/letsencrypt/live/$IP/fullchain.pem" -noout -checkip "$IP"
 openssl x509 -in "/etc/letsencrypt/live/$IP/fullchain.pem" -noout -checkend 259200
-curl --noproxy '*' --silent --show-error --fail --max-time 10 \
-    --connect-to "$IP:443:$BIND:443" "https://$IP/healthz" >/dev/null
+attempt=0
+while test "$attempt" -lt 30; do
+    if curl --noproxy '*' --silent --fail --max-time 2 \
+            --connect-to "$IP:443:$BIND:443" "https://$IP/healthz" >/dev/null 2>&1; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+test "$attempt" -lt 30 || { echo 'HTTPS workbench proxy did not become ready' >&2; exit 1; }
 code=$(curl --noproxy '*' --silent --show-error --max-time 10 \
     --output /dev/null --write-out '%{http_code}' \
     --connect-to "$IP:18443:$BIND:18443" "https://$IP:18443/")
-test "$code" = 404 || { echo 'Preview TLS listener is not ready' >&2; exit 2; }
+test "$code" = 403 || { echo 'Pre-cutover preview TLS listener is not ready' >&2; exit 2; }
 
 cd /opt/atoms-demo-docker
 test -f .env && test -f atoms.private.env
@@ -131,8 +139,16 @@ done
 test "$attempt" -lt 30 || { echo 'HTTPS app did not become healthy' >&2; exit 1; }
 docker compose -f compose.yaml -f compose.private.yaml up -d --no-deps web
 
-curl --noproxy '*' --silent --show-error --fail --max-time 10 \
-    --connect-to "$IP:443:$BIND:443" "https://$IP/healthz" >/dev/null
+attempt=0
+while test "$attempt" -lt 30; do
+    if curl --noproxy '*' --silent --fail --max-time 2 \
+            --connect-to "$IP:443:$BIND:443" "https://$IP/healthz" >/dev/null 2>&1; then
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep 1
+done
+test "$attempt" -lt 30 || { echo 'HTTPS workbench proxy did not become ready' >&2; exit 1; }
 status=$(curl --noproxy '*' --silent --show-error --max-time 10 \
     --output /dev/null --write-out '%{http_code}' \
     --header "Origin: https://$IP" --connect-to "$IP:443:$BIND:443" \
@@ -140,6 +156,14 @@ status=$(curl --noproxy '*' --silent --show-error --max-time 10 \
 test "$status" = 200 || { echo "HTTPS auth config returned $status" >&2; exit 1; }
 status=$(curl --noproxy '*' --silent --show-error --max-time 10 \
     --output /dev/null --write-out '%{http_code}' \
+    --connect-to "$IP:18443:$BIND:18443" "https://$IP:18443/")
+test "$status" = 404 || { echo "HTTPS preview root returned $status" >&2; exit 1; }
+status=$(curl --noproxy '*' --silent --show-error --max-time 10 \
+    --output /dev/null --write-out '%{http_code}' \
     --connect-to "$IP:18080:$BIND:18080" "http://$IP:18080/healthz")
 test "$status" = 308 || { echo "Old HTTP workbench returned $status" >&2; exit 1; }
+status=$(curl --noproxy '*' --silent --show-error --max-time 10 \
+    --output /dev/null --write-out '%{http_code}' \
+    --connect-to "$IP:18001:$BIND:18001" "http://$IP:18001/")
+test "$status" = 308 || { echo "Old HTTP preview returned $status" >&2; exit 1; }
 printf 'cutover=https_ready backup=%s\n' "$BACKUP"
