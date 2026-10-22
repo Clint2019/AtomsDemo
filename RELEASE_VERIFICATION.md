@@ -11,10 +11,10 @@
 
 | 对象 | 已核对的值 |
 | --- | --- |
-| 应用源码提交 | [`0240d57c2bb8bca417a5738d2bdd6cd4db1abb75`](https://github.com/Clint2019/AtomsDemo/commit/0240d57c2bb8bca417a5738d2bdd6cd4db1abb75) |
-| 发布包 ID | `fa9f4a93e1dc4103`；清单含 99 个文件及逐文件 SHA-256 |
-| Docker 镜像 | `atoms-demo:demo-20261022-2` |
-| 镜像 ID | `sha256:b97851afaf0fac2aa469d4852308ba16f3c61358209b0e3dc4ccb593df5e238c` |
+| 应用源码提交 | [`baaf4906f770cb3d81ec767154a1546935aa0966`](https://github.com/Clint2019/AtomsDemo/commit/baaf4906f770cb3d81ec767154a1546935aa0966) |
+| 发布包 ID | `432975b212371fc0`；清单含 99 个文件及逐文件 SHA-256 |
+| Docker 镜像 | `atoms-demo:demo-20261022-3` |
+| 镜像 ID | `sha256:3fda3335e17d33665455d5acc2c1165c0ba94a799d57da0aff66f454844827b4` |
 | 线上容器 | `app` 与 `web` 均运行上述镜像 ID；`app` 健康状态为 `healthy` |
 
 发布脚本在打包前检查应用源码是否已提交；发布包内嵌 `source_commit`、`release_id` 和逐文件哈希。传输前后比对发布包 SHA-256，镜像构建后回读内嵌清单，再核对两个运行容器的实际镜像 ID。GitHub `main` 的文档提交是应用源码提交的后代；镜像对应表中明确的应用源码提交。
@@ -24,17 +24,19 @@
 | 检查 | 结果 |
 | --- | --- |
 | 本地后端测试 | `python -m unittest discover -s tests`：66 项通过 |
-| 本地前端测试 | `npm test -- --run`：28 项通过 |
-| 前端生产构建 | `npm run build` 通过；主资源 `index-CHsjNEo8.js`、`index-CM50AnLW.css` |
-| 指定测试账号 | `atomsdemo@test.com` 在全新 HTTPS 浏览器会话登录、选择工作区并退出；登录 API 返回 200，密码不记录在源码中 |
-| 独立评审账号 | HTTPS 登录、工作区选择、`qwen3.7-plus` 可用性检查通过 |
-| 浏览器界面 | 评审账号进入项目和编辑器，打开 HTTPS 预览源及代码页，未见编辑器错误；浏览器安全上下文为 true |
-| 真实生成 | 评审账号通过 HTTPS 创建项目并发起模型任务；任务最终为 `succeeded`，结果版本与项目当前版本一致 |
-| 应用预览 | 隔离预览票据指向 HTTPS `:18443`，访问返回 200；票据在验收后撤销 |
+| 本地前端测试 | `npm test -- --run`：32 项通过，包含回复中列表、粗体、标题、引用、代码、表格、任务清单及危险链接的回归测试 |
+| 前端生产构建 | `npm run build` 通过；主资源 `index-YzybMLFR.js`、`index-onNC0tee.css` |
+| 新版浏览器入口 | 全新 HTTPS 会话加载上述 JS/CSS，浏览器安全上下文为 true；未登录时的 401 为预期会话检查 |
+| 新版 HTTPS 与数据 | 工作台健康检查和认证配置返回 200，预览根路径返回 404，旧 HTTP 工作台返回 308；SQLite `quick_check=ok`，未完成任务为 0 |
+| 前版指定测试账号 | `demo-20261022-2` 上，`atomsdemo@test.com` 在全新 HTTPS 浏览器会话登录、选择工作区并退出；登录 API 返回 200，密码不记录在源码中 |
+| 前版独立评审账号 | `demo-20261022-2` 上，HTTPS 登录、工作区选择、`qwen3.7-plus` 可用性检查通过 |
+| 前版浏览器界面 | `demo-20261022-2` 上，评审账号进入项目和编辑器，打开 HTTPS 预览源及代码页，未见编辑器错误 |
+| 前版真实生成 | `demo-20261022-2` 上，评审账号通过 HTTPS 创建项目并发起模型任务；任务最终为 `succeeded`，结果版本与项目当前版本一致 |
+| 前版应用预览 | `demo-20261022-2` 上，隔离预览票据指向 HTTPS `:18443`，访问返回 200；票据在验收后撤销 |
 | TLS 与旧入口 | 本机验证证书信任链与公网 IP SAN、TLS 1.3、`443` 工作台 200、`18443` 根路径 404、`80` ACME 路径可达、旧 HTTP 端口 308 |
 | 续期 | IP 证书有效期至 2026-10-29 05:16:56 UTC；`atoms-ip-certbot-renew.timer` 处于 active，四次每日检查 |
 
-验收使用的详细运行记录和账号凭据仅保存在本机忽略目录 `runtime-data/deploy/`，没有纳入 Git。线上升级和 HTTPS 切换均先备份 SQLite 数据并通过完整性检查；HTTPS 首次切换遇到代理启动瞬时 502 时自动回滚，加入就绪等待后再次切换成功。
+验收使用的详细运行记录和账号凭据仅保存在本机忽略目录 `runtime-data/deploy/`，没有纳入 Git。本次镜像升级先验证上传包 SHA-256、逐文件发布清单和镜像内嵌清单，确认线上无未完成任务，再备份 SQLite 数据并通过完整性检查；新版 `app` 与 `web` 均使用表中镜像 ID，`app` 状态为 `healthy`。本次未用评审账号重新触发模型生成；上述账号与真实生成结果属于前版验收。此前 HTTPS 首次切换遇到代理启动瞬时 502 时自动回滚，加入就绪等待后再次切换成功。
 
 ## 适用范围
 
