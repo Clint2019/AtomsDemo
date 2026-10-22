@@ -257,8 +257,8 @@ a { color: #202124; }
 .chat-turn-assistant .chat-avatar { background: #4267ff; }
 .chat-bubble { padding: 12px 15px; border: 1px solid #ececf0; border-radius: 16px; background: #fff; overflow-wrap: anywhere; }
 .chat-turn-user .chat-bubble { background: #f2f3f5; }
-.chat-bubble strong { font-size: 13px; }
-.chat-bubble p { margin: 5px 0 0; color: #373a40; white-space: pre-wrap; }
+.chat-bubble > strong { font-size: 13px; }
+.chat-bubble > .message-plain, .chat-bubble > p { margin: 5px 0 0; color: #373a40; white-space: pre-wrap; }
 .chat-bubble small { display: block; margin-top: 7px; color: #8b8f96; }
 .chat-panel .history-nav { padding: 0 24px 12px; }
 .chat-composer { display: grid; gap: 10px; margin: 0 20px 20px; padding: 12px; border: 1px solid #dfe0e4; border-radius: 18px; background: #fff; }

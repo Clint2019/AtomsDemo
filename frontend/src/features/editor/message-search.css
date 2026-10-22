@@ -8,10 +8,12 @@
 .message-search-form button:disabled, .message-search-more:disabled { opacity: .5; cursor: default; }
 .message-search-results { display: grid; gap: 8px; max-height: min(48vh, 420px); overflow-y: auto; }
 .message-search-result { padding: 10px 12px; border: 1px solid #e9e9ec; border-radius: 10px; background: #fbfbfc; }
-.message-search-result > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.message-search-result strong { font-size: 12px; }
+.message-search-result > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.message-search-result > div:first-child > strong { font-size: 12px; }
 .message-search-result time { color: #858996; font-size: 11px; }
-.message-search-result p { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.message-search-result > .message-plain { margin: 7px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.message-search-result .markdown-body { margin-top: 7px; font-size: 13px; }
+.message-search-result .markdown-body > :first-child { margin-top: 0; }
 .message-search-error { margin: 0; color: #a32b2b; font-size: 13px; }
 .message-search-hint { margin: 0; color: #777d89; font-size: 13px; }
 .message-search-more { align-self: center; }

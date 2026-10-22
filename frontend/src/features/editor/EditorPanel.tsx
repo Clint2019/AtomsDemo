@@ -10,6 +10,7 @@ import { classifyChatIntent } from "../../chatIntent";
 import { AssetsPanel } from "./AssetsPanel";
 import { CloudPanel } from "./CloudPanel";
 import { GrowthPanel } from "./GrowthPanel";
+import { MessageContent } from "./MessageContent";
 import { MessageSearchPanel } from "./MessageSearchPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { supportsVisualHtml, VisualHtmlEditor } from "./VisualHtmlEditor";
@@ -656,7 +657,7 @@ export function EditorPanel({ projectId, actorId, workspaceId, initialPrompt, in
           message.content.startsWith("待确认的任务："))).map((message) => <article className={`chat-turn chat-turn-${message.role}`} key={message.id}>
           <div className="chat-avatar" aria-hidden="true">{message.role === "user" ? "我" : "✦"}</div>
           <div className="chat-bubble"><strong>{message.role === "user" ? "你" : message.role === "assistant" ? "Atoms" : "工具"}</strong>
-            <p>{message.content}</p>{message.attachment_ids.length > 0 && <small>附件 {message.attachment_ids.length} 个</small>}</div>
+            <MessageContent role={message.role} content={message.content} />{message.attachment_ids.length > 0 && <small>附件 {message.attachment_ids.length} 个</small>}</div>
         </article>)}
       </ResourceStatus>
         {task?.state === "waiting_for_approval" && <div className="chat-turn chat-turn-assistant chat-approval-turn" role="group" aria-label="Agent 任务确认">

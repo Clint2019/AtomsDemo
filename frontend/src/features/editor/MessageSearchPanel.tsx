@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { errorMessage } from "../../api/actions";
 import { request } from "../../api/client";
 import { Page } from "../../api/types";
+import { MessageContent } from "./MessageContent";
 import "./message-search.css";
 
 interface SearchMessage {
@@ -78,7 +79,7 @@ export function MessageSearchPanel({ projectId, onClose }: {
       {matches.map((item) => <article key={item.id} className="message-search-result">
         <div><strong>{item.role === "user" ? "你" : item.role === "assistant" ? "Atoms" : "工具"}</strong>
           <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString("zh-CN")}</time></div>
-        <p>{item.content}</p>
+        <MessageContent role={item.role} content={item.content} />
       </article>)}
     </div>
     {cursor && <button type="button" className="message-search-more" disabled={loading}
